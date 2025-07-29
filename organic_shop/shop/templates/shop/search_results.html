@@ -1,0 +1,27 @@
+{% extends 'shop/base.html' %}
+
+{% block content %}
+<div class="container py-5">
+  <h3 class="mb-4">Search Results for "{{ query }}"</h3>
+
+  {% if results %}
+    <div class="row">
+      {% for product in results %}
+        <div class="col-md-4 mb-4">
+          <div class="card h-100">
+            <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+            <div class="card-body">
+              <h5 class="card-title">{{ product.name }}</h5>
+              <p class="card-text">{{ product.description|truncatewords:15 }}</p>
+              <p class="fw-bold">₹{{ product.price }}</p>
+              <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-sm btn-outline-primary">View</a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No products found matching your query.</p>
+  {% endif %}
+</div>
+{% endblock %}

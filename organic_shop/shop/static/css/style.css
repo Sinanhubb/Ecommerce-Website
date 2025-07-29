@@ -1,0 +1,23 @@
+/* Add your custom CSS here */
+.hero-section {
+    background-size: cover;
+    background-position: center;
+    padding: 100px 0;
+    color: white;
+}
+
+.product-card {
+    transition: transform 0.3s;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+}
+
+.price del {
+    color: #6c757d;
+}
+
+.price .text-danger {
+    font-weight: bold;
+}

@@ -1,0 +1,21 @@
+{% extends 'shop/base.html' %}
+{% block content %}
+<div class="container py-5">
+  <h2 class="mb-4">👋 Welcome, {{ user.username }}</h2>
+
+  <div class="card shadow-sm p-4">
+    <h4 class="mb-3">🧾 Profile Details</h4>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item"><strong>Username:</strong> {{ user.username }}</li>
+      <li class="list-group-item"><strong>Email:</strong> {{ user.email }}</li>
+      <li class="list-group-item"><strong>First Name:</strong> {{ user.first_name }}</li>
+      <li class="list-group-item"><strong>Last Name:</strong> {{ user.last_name }}</li>
+      <li class="list-group-item"><strong>Date Joined:</strong> {{ user.date_joined|date:"d M Y" }}</li>
+    </ul>
+  </div>
+
+  <div class="mt-4">
+    <a href="{% url 'accounts:logout' %}" class="btn btn-danger">Logout</a>
+  </div>
+</div>
+{% endblock %}

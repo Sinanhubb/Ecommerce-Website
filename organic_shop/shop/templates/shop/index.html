@@ -1,0 +1,155 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section" style="background-image: url('{% static 'images/banner-1.jpg' %}')">
+    <div class="container">
+        <!-- Your hero content here -->
+    </div>
+</section>
+
+<!-- Categories -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="section-title">Categories</h2>
+        <div class="row">
+            {% for category in categories %}
+            <div class="col-md-3 mb-4">
+                <div class="card">
+                    <img src="{{ category.image.url }}" class="card-img-top" alt="{{ category.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ category.name }}</h5>
+                        <a href="{% url 'shop:category_detail' category.slug %}" class="btn btn-primary">
+                            View Products
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Featured Products  -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="section-title">Featured Products</h2>
+        <div class="row">
+            {% for product in featured_products %}
+            <div class="col-md-3 mb-4">
+                <div class="card h-100">
+                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product.name }}</h5>
+                        <div class="price">
+                            {% if product.discount_price %}
+                                <del>₹{{ product.price }}</del>
+                                <span class="text-danger">₹{{ product.discount_price }}</span>
+                            {% else %}
+                                <span>₹{{ product.price }}</span>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
+                            View Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>  
+
+<!-- Best Selling Products -->
+<section class="py-5">
+  <div class="container">
+    <h2 class="section-title">Best Selling Products</h2>
+    <div class="row">
+      {% for product in best_selling %}
+      <div class="col-md-3 mb-4">
+        <div class="card h-100">
+          <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+          <div class="card-body">
+            <h5 class="card-title">{{ product.name }}</h5>
+            <div class="price">
+              {% if product.discount_price %}
+                <del>₹{{ product.price }}</del>
+                <span class="text-danger">₹{{ product.discount_price }}</span>
+              {% else %}
+                <span>₹{{ product.price }}</span>
+              {% endif %}
+            </div>
+            <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
+              View Details
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section> 
+              
+
+<!-- Just Arrived -->
+<section class="py-5 bg-light">
+  <div class="container">
+    <h2 class="section-title">Just Arrived</h2>
+    <div class="row">
+      {% for product in just_arrived %}
+      <div class="col-md-3 mb-4">
+        <div class="card h-100">
+          <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+          <div class="card-body">
+            <h5 class="card-title">{{ product.name }}</h5>
+            <div class="price">
+              {% if product.discount_price %}
+                <del>₹{{ product.price }}</del>
+                <span class="text-danger">₹{{ product.discount_price }}</span>
+              {% else %}
+                <span>₹{{ product.price }}</span>
+              {% endif %}
+            </div>
+            <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
+              View Details
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Most Popular 
+<section class="py-5">
+  <div class="container">
+    <h2 class="section-title">Most Popular Products</h2>
+    <div class="row">
+      {% for product in most_popular %}
+      <div class="col-md-3 mb-4">
+        <div class="card h-100">
+          <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+          <div class="card-body">
+            <h5 class="card-title">{{ product.name }}</h5>
+            <div class="price">
+              {% if product.discount_price %}
+                <del>₹{{ product.price }}</del>
+                <span class="text-danger">₹{{ product.discount_price }}</span>
+              {% else %}
+                <span>₹{{ product.price }}</span>
+              {% endif %}
+            </div>
+            <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
+              View Details
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section> -->
+
+{% endblock %}
