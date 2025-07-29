@@ -17,10 +17,38 @@
         <tbody>
             {% for item in cart.items.all %}
             <tr>
+                <!-- Product Name -->
                 <td>{{ item.product.name }}</td>
-                <td>{{ item.quantity }}</td>
-                <td>₹{{ item.product.price }}</td>
-                <td>₹{{ item.total_price }}</td>
+
+                <!-- Quantity Update Form -->
+               <td>
+                <input type="number"
+                    class="form-control w-50 quantity-input"
+                    min="1"
+                    data-item-id="{{ item.id }}"
+                    value="{{ item.quantity }}">
+            </td>
+
+
+                <!-- Price (Original + Discount) -->
+                <td>
+                    {% if item.product.discount_price %}
+                        <span class="text-muted text-decoration-line-through">₹{{ item.product.price }}</span><br>
+                        <span class="text-success fw-bold">₹{{ item.product.discount_price }}</span>
+                    {% else %}
+                        ₹{{ item.product.price }}
+                    {% endif %}
+                </td>
+
+                <!-- Total Price + Savings -->
+                <td>
+                    ₹{{ item.total_price }}
+                    {% if item.savings > 0 %}
+                        <br><small class="text-success">You Save ₹{{ item.savings }}</small>
+                    {% endif %}
+                </td>
+
+                <!-- Remove Button -->
                 <td>
                     <a href="{% url 'shop:cart_remove' item.product.id %}" class="btn btn-danger">
                         Remove
@@ -33,15 +61,62 @@
             </tr>
             {% endfor %}
         </tbody>
+
+        <!-- Cart Total & Savings -->
         <tfoot>
             <tr>
                 <th colspan="3">Total</th>
                 <th colspan="2">₹{{ cart.total_price }}</th>
             </tr>
+            {% if cart.total_savings > 0 %}
+            <tr>
+                <th colspan="3" class="text-success">Total Savings</th>
+                <th colspan="2" class="text-success">₹{{ cart.total_savings }}</th>
+            </tr>
+            {% endif %}
         </tfoot>
     </table>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const csrfToken = '{{ csrf_token }}';
+
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('change', function () {
+                const itemId = this.dataset.itemId;
+                const newQuantity = this.value;
+
+                fetch("{% url 'shop:update_cart_item_ajax' %}", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: JSON.stringify({
+                        item_id: itemId,
+                        quantity: newQuantity
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Optionally: reload total price dynamically or just refresh page
+                        location.reload(); // or update DOM manually if needed
+                    } else {
+                        alert("Update failed.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error updating quantity:", error);
+                });
+            });
+        });
+    });
+</script>
+
+
+    <!-- Checkout Button -->
     <div class="text-end">
-        <a href="{% url 'shop:checkout' %}" class="btn btn-primary">  {# Only if you have a checkout view #}Proceed to Checkout</a>
+        <a href="{% url 'shop:checkout' %}" class="btn btn-primary">Proceed to Checkout</a>
     </div>
 </div>
 {% endblock %}

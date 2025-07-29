@@ -4,6 +4,8 @@ from django.http import JsonResponse
 from .models import Category, Product, Cart, CartItem
 from .forms import CartAddProductForm
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+import json
 
 def index(request):
     categories = Category.objects.all()
@@ -118,6 +120,48 @@ def remove_from_cart(request, item_id):
     item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
     item.delete()
     return redirect('accounts:profile')
+
+
+@require_POST
+@login_required
+def update_cart_item(request, item_id):
+    item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+    try:
+        quantity = int(request.POST.get('quantity'))
+        if quantity > 0:
+            item.quantity = quantity
+            item.save()
+        else:
+            item.delete()
+    except (ValueError, TypeError):
+        pass
+    return redirect('shop:cart_detail')
+
+
+
+
+@csrf_exempt
+@require_POST
+@login_required
+def update_cart_item_ajax(request):
+    try:
+        data = json.loads(request.body)
+        item_id = data.get("item_id")
+        quantity = int(data.get("quantity"))
+
+        item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+
+        if quantity > 0:
+            item.quantity = quantity
+            item.save()
+        else:
+            item.delete()
+
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)})
+
+
 
 
 

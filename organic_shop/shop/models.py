@@ -72,3 +72,9 @@ class CartItem(models.Model):
         if self.product.discount_price:
             return self.product.discount_price * self.quantity
         return self.product.price * self.quantity
+    
+    @property
+    def savings(self):
+        if self.product.discount_price:
+            return (self.product.price - self.product.discount_price) * self.quantity
+        return 0
