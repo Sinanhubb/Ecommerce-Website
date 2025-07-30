@@ -10,6 +10,8 @@
             <div class="card h-100">
                 <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
                 <div class="card-body">
+                    <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
+
                     <h5 class="card-title">{{ product.name }}</h5>
                     <div class="price">
                         {% if product.discount_price %}
@@ -19,6 +21,11 @@
                             <span>₹{{ product.price }}</span>
                         {% endif %}
                     </div>
+                    <form action="{% url 'shop:buy_now' product.id %}" method="post" class="mt-2">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">Buy Now</button>
+                    </form>
+
                     <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">View Details</a>
                 </div>
             </div>

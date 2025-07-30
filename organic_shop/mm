@@ -1,0 +1,674 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <!-- Product Images Column -->
+        <div class="col-md-6">
+            <!-- Main Image with Zoom Capability -->
+            <div class="main-image mb-4 border rounded p-2">
+                <img id="zoom-image" src="{{ product.image.url }}" 
+                     class="img-fluid w-100 cursor-zoom" 
+                     alt="{{ product.name }}"
+                     data-zoom-image="{{ product.image.url }}">
+            </div>
+
+            <!-- Thumbnail Gallery -->
+            <div class="thumbnail-gallery d-flex flex-wrap gap-2">
+                <img src="{{ product.image.url }}" 
+                     class="img-thumbnail cursor-pointer active-thumbnail" 
+                     style="width: 80px; height: 80px; object-fit: cover;" 
+                     alt="{{ product.name }}"
+                     onclick="changeMainImage(this, '{{ product.image.url }}')">
+                
+                {% for img in product.images.all %}
+                    <img src="{{ img.image.url }}" 
+                         class="img-thumbnail cursor-pointer" 
+                         style="width: 80px; height: 80px; object-fit: cover;" 
+                         alt="Product image {{ forloop.counter }}"
+                         onclick="changeMainImage(this, '{{ img.image.url }}')">
+                {% endfor %}
+            </div>
+
+            <!-- Share Section -->
+            <div class="mt-4">
+                <button class="btn btn-outline-secondary" onclick="toggleShareIcons()">
+                    <i class="bi bi-share-fill me-2"></i>Share this product
+                </button>
+
+                <div id="share-icons" class="mt-3 d-none animate-fade-in">
+                    <a href="https://wa.me/?text=Check%20out%20this%20product:%20{{ product.name }}%20{{ request.build_absolute_uri }}" 
+                       target="_blank" 
+                       class="btn btn-success me-2 mb-2">
+                        <i class="bi bi-whatsapp me-1"></i>WhatsApp
+                    </a>
+                    <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}" 
+                       target="_blank" 
+                       class="btn btn-primary me-2 mb-2">
+                        <i class="bi bi-facebook me-1"></i>Facebook
+                    </a>
+                    <a href="https://twitter.com/intent/tweet?text=Check%20out%20this%20product:%20{{ product.name }}&url={{ request.build_absolute_uri }}" 
+                       target="_blank" 
+                       class="btn btn-dark me-2 mb-2">
+                        <i class="bi bi-twitter-x me-1"></i>Twitter
+                    </a>
+                    <a href="mailto:?subject=Check%20out%20this%20product&body=Hi,%0D%0A%0D%0AI%20thought%20you%20might%20like%20this:%20{{ product.name }}%20{{ request.build_absolute_uri }}" 
+                       class="btn btn-secondary mb-2">
+                        <i class="bi bi-envelope me-1"></i>Email
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Info Column -->
+        <div class="col-md-6">
+            <h1 class="product-title mb-2">{{ product.name }}</h1>
+            
+            <!-- Brand and Category -->
+            <div class="d-flex align-items-center mb-3">
+                {% if product.brand %}
+                <span class="badge bg-light text-dark me-2">{{ product.brand }}</span>
+                {% endif %}
+                <a href="{% url 'shop:product_list_by_category' product.category.slug %}" 
+                   class="text-decoration-none text-muted small">
+                    <i class="bi bi-tag-fill me-1"></i>{{ product.category }}
+                </a>
+            </div>
+
+            <!-- Rating Display with Progress Bars -->
+            <div class="rating-section mb-3">
+                <div class="d-flex align-items-center mb-2">
+                    {% if average_rating %}
+                        <div class="star-rating me-2">
+                            {% for i in "12345" %}
+                                {% if forloop.counter <= average_rating|floatformat:0 %}
+                                    <i class="bi bi-star-fill text-warning"></i>
+                                {% else %}
+                                    <i class="bi bi-star text-warning"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <span class="fw-bold me-2">{{ average_rating|floatformat:1 }}/5</span>
+                        <a href="#reviews" class="text-decoration-none small">
+                            ({{ reviews.count }} review{% if reviews.count != 1 %}s{% endif %})
+                        </a>
+                    {% else %}
+                        <span class="text-muted">No ratings yet</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Rating Distribution -->
+                {% if rating_distribution %}
+                <div class="rating-distribution small">
+                    {% for i in "54321" %}
+                    <div class="d-flex align-items-center mb-1">
+                        <span class="me-2">{{ i }} star</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                            <div class="progress-bar bg-warning" 
+                                 style="width: {{ rating_distribution|get_item:i }}%"></div>
+                        </div>
+                        <span class="ms-2 text-muted">{{ rating_distribution|get_item:i }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Price Display -->
+            <div class="price-section mb-3 p-3 bg-light rounded">
+                {% if product.discount_price %}
+                    <div class="d-flex align-items-center">
+                        <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
+                        <span class="text-decoration-line-through text-muted me-2">₹{{ product.price }}</span>
+                        <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
+                    </div>
+                {% else %}
+                    <span class="fs-3 fw-bold">₹{{ product.price }}</span>
+                {% endif %}
+                
+                {% if product.tax_included %}
+                    <div class="text-success small mt-1">
+                        <i class="bi bi-check-circle-fill"></i> Tax included
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Stock Status with Delivery Info -->
+            <div class="delivery-info mb-4 p-3 border rounded">
+                {% if product.stock > 10 %}
+                    <div class="text-success mb-2">
+                        <i class="bi bi-check-circle-fill"></i> In Stock ({{ product.stock }} available)
+                    </div>
+                {% elif product.stock > 0 %}
+                    <div class="text-warning mb-2">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Only {{ product.stock }} left in stock!
+                    </div>
+                {% else %}
+                    <div class="text-danger mb-2">
+                        <i class="bi bi-x-circle-fill"></i> Currently out of stock
+                    </div>
+                {% endif %}
+                
+                <div class="small">
+                    <i class="bi bi-truck me-1"></i>
+                    {% if product.free_shipping %}
+                        <span class="text-success">Free delivery</span>
+                    {% else %}
+                        Delivery: ₹{{ product.shipping_cost|default:"Calculated at checkout" }}
+                    {% endif %}
+                    <span class="mx-2">|</span>
+                    <i class="bi bi-clock me-1"></i>
+                    Estimated delivery: {{ product.delivery_days }} business days
+                </div>
+            </div>
+
+            <!-- Product Highlights -->
+            <div class="product-highlights mb-4">
+                <h5 class="mb-3">Key Features</h5>
+                <ul class="list-unstyled">
+                    {% for feature in product.features_as_list %}
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>{{ feature }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <!-- Add to Cart Section -->
+            <div class="cart-section mb-4">
+                <form action="{% url 'shop:cart_add' product.id %}" method="post" class="row g-2">
+                    {% csrf_token %}
+                    <div class="col-md-4">
+                        {{ cart_product_form.quantity.label_tag }}
+                        {{ cart_product_form.quantity }}
+                    </div>
+                    <div class="col-md-8 d-flex align-items-end">
+                        {% if product.stock > 0 %}
+                            <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                                <i class="bi bi-cart-plus me-2"></i>Add to Cart
+                            </button>
+                        {% else %}
+                            <button type="button" class="btn btn-secondary btn-lg flex-grow-1" disabled>
+                                <i class="bi bi-cart-x me-2"></i>Out of Stock
+                            </button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+
+            <!-- Wishlist and Buy Now -->
+            <div class="d-flex gap-2 mb-4">
+                <form action="{% url 'shop:add_to_wishlist' product.id %}" method="post" class="flex-grow-1">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger w-100">
+                        <i class="bi bi-heart{% if product in user_wishlist %}-fill{% endif %} me-2"></i>
+                        {% if product in user_wishlist %}Remove from{% else %}Add to{% endif %} Wishlist
+                    </button>
+                </form>
+                {% if product.stock > 0 %}
+                <a href="{% url 'shop:checkout_direct' product.id %}" class="btn btn-success flex-grow-1">
+                    <i class="bi bi-lightning-fill me-2"></i>Buy Now
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Payment Options -->
+            <div class="payment-options mb-4">
+                <p class="small text-muted mb-1">Secure payment options:</p>
+                <div class="d-flex gap-2">
+                    <img src="{% static 'shop/images/visa.png' %}" alt="Visa" style="height: 24px;">
+                    <img src="{% static 'shop/images/mastercard.png' %}" alt="Mastercard" style="height: 24px;">
+                    <img src="{% static 'shop/images/paypal.png' %}" alt="PayPal" style="height: 24px;">
+                    <img src="{% static 'shop/images/upi.png' %}" alt="UPI" style="height: 24px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Details Tabs -->
+    <div class="product-details-tabs mt-5">
+        <ul class="nav nav-tabs" id="productTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="description-tab" data-bs-toggle="tab" data-bs-target="#description" type="button" role="tab">
+                    Description
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="specs-tab" data-bs-toggle="tab" data-bs-target="#specs" type="button" role="tab">
+                    Specifications
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="reviews-tab" data-bs-toggle="tab" data-bs-target="#reviews" type="button" role="tab">
+                    Reviews ({{ reviews.count }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="faq-tab" data-bs-toggle="tab" data-bs-target="#faq" type="button" role="tab">
+                    FAQ
+                </button>
+            </li>
+        </ul>
+        <div class="tab-content p-3 border border-top-0 rounded-bottom" id="productTabsContent">
+            <!-- Description Tab -->
+            <div class="tab-pane fade show active" id="description" role="tabpanel">
+                <div class="product-description">
+                    {{ product.description|linebreaks }}
+                </div>
+                
+                {% if product.additional_info %}
+                <div class="mt-4">
+                    <h5>Additional Information</h5>
+                    <p>{{ product.additional_info|linebreaks }}</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Specifications Tab -->
+            <div class="tab-pane fade" id="specs" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <tbody>
+                            {% for spec in product.specifications_as_dict.items %}
+                            <tr>
+                                <th width="30%">{{ spec.0 }}</th>
+                                <td>{{ spec.1 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Reviews Tab -->
+            <div class="tab-pane fade" id="reviews" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card mb-4">
+                            <div class="card-body text-center">
+                                {% if average_rating %}
+                                    <h1 class="display-4">{{ average_rating|floatformat:1 }}</h1>
+                                    <div class="star-rating mb-2">
+                                        {% for i in "12345" %}
+                                            {% if forloop.counter <= average_rating|floatformat:0 %}
+                                                <i class="bi bi-star-fill text-warning fs-4"></i>
+                                            {% else %}
+                                                <i class="bi bi-star text-warning fs-4"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    <p class="text-muted">Based on {{ reviews.count }} review{% if reviews.count != 1 %}s{% endif %}</p>
+                                {% else %}
+                                    <p class="text-muted">No reviews yet</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if user.is_authenticated %}
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Write a Review</h5>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <div class="mb-3">
+                                        <label class="form-label">Your Rating</label>
+                                        <div class="star-rating-input">
+                                            {% for i in "54321" %}
+                                                <input type="radio" id="star{{ i }}" name="rating" value="{{ i }}" 
+                                                       {% if review_form.rating.value == i %}checked{% endif %}>
+                                                <label for="star{{ i }}" title="{{ i }} stars">
+                                                    <i class="bi bi-star-fill"></i>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ review_form.comment.label_tag }}
+                                        {{ review_form.comment }}
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Submit Review</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <p>Please <a href="{% url 'accounts:login' %}?next={{ request.path }}">log in</a> to write a review.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-7">
+                        {% if reviews %}
+                            <div class="review-list">
+                                {% for review in reviews %}
+                                    <div class="review-item border-bottom pb-3 mb-3">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <div>
+                                                <strong>{{ review.user.username }}</strong>
+                                                <div class="star-rating small">
+                                                    {% for i in "12345" %}
+                                                        {% if forloop.counter <= review.rating %}
+                                                            <i class="bi bi-star-fill text-warning"></i>
+                                                        {% else %}
+                                                            <i class="bi bi-star text-warning"></i>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">{{ review.created_at|date:"M d, Y" }}</small>
+                                        </div>
+                                        <p class="mb-2">{{ review.comment }}</p>
+                                        
+                                        {% if review.user == request.user %}
+                                        <div class="text-end">
+                                            <a href="{% url 'shop:edit_review' review.id %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="bi bi-chat-square-text fs-1 text-muted"></i>
+                                <p class="mt-2">No reviews yet. Be the first to review this product!</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- FAQ Tab -->
+            <div class="tab-pane fade" id="faq" role="tabpanel">
+                <div class="accordion" id="faqAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                What is the return policy for this product?
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                You can return this product within 30 days of delivery for a full refund. The product must be in its original condition with all tags attached.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                How do I track my order?
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                Once your order is shipped, you'll receive a tracking number via email. You can use this number on our website or the courier's website to track your package.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                Is international shipping available?
+                            </button>
+                        </h2>
+                        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                Currently, we only ship within India. International shipping options will be available soon.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h5>Have another question?</h5>
+                    <p>Contact our customer support team at <a href="mailto:support@example.com">support@example.com</a> or call us at +91 1234567890.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Similar Products Section -->
+    <section class="similar-products mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4>Similar Products</h4>
+            <a href="{% url 'shop:product_list_by_category' product.category.slug %}" class="btn btn-sm btn-outline-primary">
+                View All in {{ product.category }}
+            </a>
+        </div>
+        
+        <div class="row">
+            {% for similar in similar_products %}
+            <div class="col-lg-3 col-md-4 col-6 mb-4">
+                <div class="card h-100 product-card">
+                    {% if similar.discount_price %}
+                    <span class="badge bg-danger position-absolute" style="top: 10px; right: 10px;">
+                        {{ similar.get_discount_percentage }}% OFF
+                    </span>
+                    {% endif %}
+                    
+                    <a href="{% url 'shop:product_detail' similar.slug %}">
+                        <img src="{{ similar.image.url }}" class="card-img-top" alt="{{ similar.name }}">
+                    </a>
+                    
+                    <div class="card-body">
+                        <a href="{% url 'shop:product_list_by_category' similar.category.slug %}" 
+                           class="text-muted small text-decoration-none d-block mb-1">
+                            {{ similar.category }}
+                        </a>
+                        <h5 class="card-title">
+                            <a href="{% url 'shop:product_detail' similar.slug %}" class="text-decoration-none">
+                                {{ similar.name|truncatechars:40 }}
+                            </a>
+                        </h5>
+                        
+                        <div class="star-rating small mb-2">
+                            {% if similar.average_rating %}
+                                {% for i in "12345" %}
+                                    {% if forloop.counter <= similar.average_rating|floatformat:0 %}
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                    {% else %}
+                                        <i class="bi bi-star text-warning"></i>
+                                    {% endif %}
+                                {% endfor %}
+                                <span class="small text-muted ms-1">({{ similar.review_count }})</span>
+                            {% else %}
+                                <span class="text-muted small">No ratings</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="price">
+                            {% if similar.discount_price %}
+                                <span class="text-danger fw-bold">₹{{ similar.discount_price }}</span>
+                                <span class="text-decoration-line-through text-muted small ms-2">₹{{ similar.price }}</span>
+                            {% else %}
+                                <span class="fw-bold">₹{{ similar.price }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer bg-transparent">
+                        <form action="{% url 'shop:cart_add' similar.id %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="quantity" value="1">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-cart-plus"></i>
+                            </button>
+                        </form>
+                        
+                        <form action="{% url 'shop:add_to_wishlist' similar.id %}" method="post" class="d-inline ms-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-heart{% if similar in user_wishlist %}-fill{% endif %}"></i>
+                            </button>
+                        </form>
+                        
+                        <a href="{% url 'shop:product_detail' similar.slug %}" 
+                           class="btn btn-sm btn-outline-secondary float-end">
+                            Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Recently Viewed Products (if implemented) -->
+    {% if recently_viewed %}
+    <section class="recently-viewed mt-5">
+        <h4 class="mb-4">Recently Viewed</h4>
+        <div class="row">
+            {% for product in recently_viewed %}
+            <div class="col-lg-2 col-md-3 col-4 mb-4">
+                <div class="card h-100">
+                    <a href="{% url 'shop:product_detail' product.slug %}">
+                        <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                    </a>
+                    <div class="card-body p-2">
+                        <a href="{% url 'shop:product_detail' product.slug %}" 
+                           class="text-decoration-none small text-dark">
+                            {{ product.name|truncatechars:30 }}
+                        </a>
+                        <div class="price small mt-1">
+                            {% if product.discount_price %}
+                                <span class="text-danger fw-bold">₹{{ product.discount_price }}</span>
+                            {% else %}
+                                <span class="fw-bold">₹{{ product.price }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+<!-- Image Zoom Modal -->
+<div class="modal fade" id="imageZoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="zoomedImage" src="" class="img-fluid" style="max-height: 80vh;" alt="">
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Custom Styles */
+    .product-title {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .star-rating {
+        color: #ffc107;
+    }
+    
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    .cursor-zoom {
+        cursor: zoom-in;
+    }
+    
+    .active-thumbnail {
+        border: 2px solid #0d6efd !important;
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .star-rating-input {
+        direction: rtl;
+        unicode-bidi: bidi-override;
+    }
+    
+    .star-rating-input input {
+        display: none;
+    }
+    
+    .star-rating-input label {
+        color: #ddd;
+        font-size: 1.5rem;
+        padding: 0 3px;
+        cursor: pointer;
+    }
+    
+    .star-rating-input input:checked ~ label,
+    .star-rating-input label:hover,
+    .star-rating-input label:hover ~ label {
+        color: #ffc107;
+    }
+    
+    .star-rating-input input:checked + label:hover,
+    .star-rating-input input:checked ~ label:hover,
+    .star-rating-input label:hover ~ input:checked ~ label {
+        color: #ffc107;
+    }
+    
+    .product-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .review-item {
+        transition: background-color 0.2s;
+    }
+    
+    .review-item:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+
+<script>
+    // Change main image when thumbnail is clicked
+    function changeMainImage(thumbnail, imageUrl) {
+        document.getElementById('zoom-image').src = imageUrl;
+        document.getElementById('zoom-image').dataset.zoomImage = imageUrl;
+        
+        // Update active thumbnail
+        document.querySelectorAll('.thumbnail-gallery img').forEach(img => {
+            img.classList.remove('active-thumbnail');
+        });
+        thumbnail.classList.add('active-thumbnail');
+    }
+    
+    // Toggle share icons
+    function toggleShareIcons() {
+        const shareIcons = document.getElementById("share-icons");
+        shareIcons.classList.toggle("d-none");
+    }
+    
+    // Image zoom functionality
+    document.getElementById('zoom-image').addEventListener('click', function() {
+        const zoomModal = new bootstrap.Modal(document.getElementById('imageZoomModal'));
+        document.getElementById('zoomedImage').src = this.dataset.zoomImage;
+        zoomModal.show();
+    });
+    
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

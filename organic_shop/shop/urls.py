@@ -17,6 +17,12 @@ urlpatterns = [
     path('ajax/search/', views.ajax_search, name='ajax_search'),
     path('remove-from-cart/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
     path('cart/update-ajax/', views.update_cart_item_ajax, name='update_cart_item_ajax'),
+    path('buy-now/<int:product_id>/', views.buy_now, name='buy_now'),
+    path('wishlist/add/<int:product_id>/', views.add_to_wishlist, name='add_to_wishlist'),
+    path('wishlist/', views.wishlist_view, name='wishlist'),
+    path('wishlist/remove/<int:product_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
+
+
 
 
     

@@ -1,5 +1,5 @@
 from django import forms
-from .models import CartItem
+from .models import CartItem,Review
 
 class CartAddProductForm(forms.Form):
     quantity = forms.IntegerField(
@@ -15,3 +15,12 @@ class CartAddProductForm(forms.Form):
         initial=False,
         widget=forms.HiddenInput
     )
+
+class ReviewForm(forms.ModelForm):
+    class Meta:
+        model = Review
+        fields = ['rating', 'comment']
+        widgets = {
+            'rating': forms.Select(choices=[(i, f"{i} Star") for i in range(1, 6)]),
+            'comment': forms.Textarea(attrs={'rows': 3}),
+        }

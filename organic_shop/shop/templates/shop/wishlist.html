@@ -1,0 +1,38 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5">
+    <h2 class="mb-4">My Wishlist</h2>
+
+    {% if wishlist_items %}
+        <div class="row">
+            {% for item in wishlist_items %}
+                <div class="col-6 col-md-3 mb-4">
+                    <div class="card h-100">
+                        <img src="{{ item.product.image.url }}" class="card-img-top p-2" alt="{{ item.product.name }}" style="height: 200px; object-fit: contain;">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ item.product.name|truncatechars:40 }}</h6>
+                            <div class="price mb-2">
+                                {% if item.product.discount_price %}
+                                    <span class="text-danger fw-bold">₹{{ item.product.discount_price }}</span>
+                                    <small class="text-muted text-decoration-line-through">₹{{ item.product.price }}</small>
+                                {% else %}
+                                    ₹{{ item.product.price }}
+                                {% endif %}
+                            </div>
+                            <a href="{% url 'shop:product_detail' item.product.slug %}" class="btn btn-outline-primary btn-sm w-100 mb-2">View</a>
+                            <form action="{% url 'shop:remove_from_wishlist' item.product.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm w-100">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">Your wishlist is empty.</div>
+    {% endif %}
+</div>
+{% endblock %}
