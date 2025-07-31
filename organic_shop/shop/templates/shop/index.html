@@ -2,25 +2,29 @@
 {% load static %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="hero-section" style="background-image: url('{% static 'images/banner-1.jpg' %}')">
-    <div class="container">
-        <!-- Your hero content here -->
+<!-- Enhanced Hero Section -->
+<section class="hero-section" style="background-image: url('{% static 'images/banner-1.jpg' %}'); background-size: cover; background-position: center; min-height: 400px; display: flex; align-items: center;">
+    <div class="container text-center text-white">
+        <h1 class="display-4 mb-3">Welcome to Our Shop</h1>
+        <p class="lead mb-4">Discover the best products at amazing prices</p>
+        <a href="#featured" class="btn btn-primary btn-lg px-4">Shop Now</a>
     </div>
 </section>
 
-<!-- Categories -->
+<!-- Enhanced Categories Section -->
 <section class="py-5">
     <div class="container">
-        <h2 class="section-title">Categories</h2>
-        <div class="row">
+        <h2 class="section-title text-center mb-5">Our Categories</h2>
+        <div class="row g-4">
             {% for category in categories %}
             <div class="col-md-3 mb-4">
-                <div class="card">
-                    <img src="{{ category.image.url }}" class="card-img-top" alt="{{ category.name }}">
-                    <div class="card-body">
+                <div class="card h-100 border-0 shadow-sm hover-shadow transition">
+                    <div class="card-img-top-container" style="height: 200px; overflow: hidden;">
+                        <img src="{{ category.image.url }}" class="img-fluid w-100 h-100 object-fit-cover" alt="{{ category.name }}" loading="lazy">
+                    </div>
+                    <div class="card-body text-center">
                         <h5 class="card-title">{{ category.name }}</h5>
-                        <a href="{% url 'shop:category_detail' category.slug %}" class="btn btn-primary">
+                        <a href="{% url 'shop:category_detail' category.slug %}" class="btn btn-outline-primary mt-2 stretched-link">
                             View Products
                         </a>
                     </div>
@@ -31,165 +35,70 @@
     </div>
 </section>
 
-<!-- Featured Products  -->
-<section class="py-5 bg-light">
-    <div class="container">
-        <h2 class="section-title">Featured Products</h2>
-        <div class="row">
-            {% for product in featured_products %}
-            <div class="col-md-3 mb-4">
-                <div class="card h-100">
-                  
-                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
-                    <div class="card-body">
-                      <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
-                      
-                {% if product.stock > 10 %}
-                    <span class="badge bg-success">In Stock</span>
-                {% elif product.stock > 0 %}
-                    <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
-                {% else %}
-                    <span class="badge bg-danger">Out of Stock</span>
-                {% endif %}
-            
+<!-- Enhanced Product Sections -->
+{% with sections=featured_products title="Featured Products" bg_class="bg-light" %}
+    {% include "shop/partials/product_section.html" %}
+{% endwith %}
 
+{% with sections=best_selling title="Best Selling Products" %}
+    {% include "shop/partials/product_section.html" %}
+{% endwith %}
 
-                        <h5 class="card-title">{{ product.name }}</h5>
-                        <div class="price">
-                            {% if product.discount_price %}
-                                <del>₹{{ product.price }}</del>
-                                <span class="text-danger">₹{{ product.discount_price }}</span>
-                            {% else %}
-                                <span>₹{{ product.price }}</span>
-                            {% endif %}
-                            
-                        </div>
-                        <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
-                            View Details
-                        </a>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</section>  
+{% with sections=just_arrived title="Just Arrived" bg_class="bg-light" %}
+    {% include "shop/partials/product_section.html" %}
+{% endwith %}
 
-<!-- Best Selling Products -->
-<section class="py-5">
-  <div class="container">
-    <h2 class="section-title">Best Selling Products</h2>
-    <div class="row">
-      {% for product in best_selling %}
-      <div class="col-md-3 mb-4">
-        <div class="card h-100">
-          <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
-          <div class="card-body">
-            <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
-            {% if product.stock > 10 %}
-                    <span class="badge bg-success">In Stock</span>
-                {% elif product.stock > 0 %}
-                    <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
-                {% else %}
-                    <span class="badge bg-danger">Out of Stock</span>
-                {% endif %}
+{% with sections=most_popular title="Most Popular Products" %}
+    {% include "shop/partials/product_section.html" %}
+{% endwith %}
 
-            <h5 class="card-title">{{ product.name }}</h5>
-            <div class="price">
-              {% if product.discount_price %}
-                <del>₹{{ product.price }}</del>
-                <span class="text-danger">₹{{ product.discount_price }}</span>
-              {% else %}
-                <span>₹{{ product.price }}</span>
-              {% endif %}
-            </div>
-            <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
-              View Details
-            </a>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</section> 
-              
+{% endblock %}
 
-<!-- Just Arrived -->
-<section class="py-5 bg-light">
-  <div class="container">
-    <h2 class="section-title">Just Arrived</h2>
-    <div class="row">
-      {% for product in just_arrived %}
-      <div class="col-md-3 mb-4">
-        <div class="card h-100">
-          <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
-          <div class="card-body">
-            <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
-            {% if product.stock > 10 %}
-                    <span class="badge bg-success">In Stock</span>
-                {% elif product.stock > 0 %}
-                    <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
-                {% else %}
-                    <span class="badge bg-danger">Out of Stock</span>
-                {% endif %}
-
-            <h5 class="card-title">{{ product.name }}</h5>
-            <div class="price">
-              {% if product.discount_price %}
-                <del>₹{{ product.price }}</del>
-                <span class="text-danger">₹{{ product.discount_price }}</span>
-              {% else %}
-                <span>₹{{ product.price }}</span>
-              {% endif %}
-            </div>
-            <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
-              View Details
-            </a>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-<!-- Most Popular -->
-<section class="py-5">
-  <div class="container">
-    <h2 class="section-title">Most Popular Products</h2>
-    <div class="row">
-      {% for product in most_popular %}
-      <div class="col-md-3 mb-4">
-        <div class="card h-100">
-          <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
-          <div class="card-body">
-            <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
-            {% if product.stock > 10 %}
-                    <span class="badge bg-success">In Stock</span>
-                {% elif product.stock > 0 %}
-                    <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
-                {% else %}
-                    <span class="badge bg-danger">Out of Stock</span>
-                {% endif %}
-            <h5 class="card-title">{{ product.name }}</h5>
-            <div class="price">
-              {% if product.discount_price %}
-                <del>₹{{ product.price }}</del>
-                <span class="text-danger">₹{{ product.discount_price }}</span>
-              {% else %}
-                <span>₹{{ product.price }}</span>
-              {% endif %}
-            </div>
-            <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">
-              View Details
-            </a>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</section> 
-
+{% block extra_css %}
+<style>
+    .hero-section {
+        position: relative;
+    }
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0,0,0,0.5);
+    }
+    .hover-shadow:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .transition {
+        transition: all 0.3s ease;
+    }
+    .object-fit-cover {
+        object-fit: cover;
+    }
+    .section-title {
+        position: relative;
+        padding-bottom: 15px;
+    }
+    .section-title::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 3px;
+        background: #0d6efd;
+    }
+    .stretched-link::after {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1;
+        content: "";
+    }
+</style>
 {% endblock %}

@@ -105,10 +105,12 @@
 
                 <!-- Buy Now Form (Moved outside the above form) -->
                 {% if product.stock > 0 %}
-                <form action="{% url 'shop:buy_now' product.id %}" method="post" class="mt-2">
+                <form id="buyNowForm" action="{% url 'accounts:direct_checkout' product.id %}" method="POST" class="mt-2">
                     {% csrf_token %}
+                    <input type="hidden" name="quantity" id="buyNowQuantity">
                     <button type="submit" class="btn btn-success w-100 btn-lg">Buy Now</button>
                 </form>
+
                 {% endif %}
 
                 <!-- Wishlist + Share -->
@@ -340,6 +342,12 @@ function changeMainImage(element) {
     });
     element.classList.add('active');
 }
+// Set Buy Now quantity before submit
+document.getElementById('buyNowForm').addEventListener('submit', function (e) {
+    const quantity = document.querySelector('input[name="quantity"]').value;
+    document.getElementById('buyNowQuantity').value = quantity;
+});
+
 
 // Quantity increment/decrement
 function incrementQuantity() {

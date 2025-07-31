@@ -1,0 +1,61 @@
+<div class="product-section py-5 {{ bg_class }}">
+    <div class="container">
+        <h2 class="section-title text-center mb-5">{{ title }}</h2>
+        <div class="row g-4">
+            {% for product in sections %}
+            <div class="col-md-3 mb-4">
+                <div class="card h-100 border-0 shadow-sm hover-shadow transition position-relative">
+                    <!-- Badges -->
+                    <div class="position-absolute top-0 start-0 p-2">
+                        {% if product.discount_price %}
+                            <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
+                        {% endif %}
+                        {% if product.stock > 10 %}
+                            <span class="badge bg-success">In Stock</span>
+                        {% elif product.stock > 0 %}
+                            <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
+                        {% else %}
+                            <span class="badge bg-danger">Out of Stock</span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Product Image -->
+                    <div style="height: 200px; overflow: hidden;">
+                        <img src="{{ product.image.url }}" class="card-img-top h-100 w-100 object-fit-cover" alt="{{ product.name }}" loading="lazy">
+                    </div>
+                    
+                    <!-- Product Details -->
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product.name }}</h5>
+                        <div class="price mb-3">
+                            {% if product.discount_price %}
+                                <del class="text-muted">₹{{ product.price }}</del>
+                                <span class="text-danger fw-bold">₹{{ product.discount_price }}</span>
+                            {% else %}
+                                <span class="fw-bold">₹{{ product.price }}</span>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary w-100 stretched-link">
+                            View Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
