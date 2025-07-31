@@ -22,7 +22,8 @@
                                 {% endif %}
                             </div>
                             <a href="{% url 'shop:product_detail' item.product.slug %}" class="btn btn-outline-primary btn-sm w-100 mb-2">View</a>
-                            <form action="{% url 'shop:remove_from_wishlist' item.product.id %}" method="post">
+                            <form action="{% url 'accounts:remove_from_wishlist' item.product.id %}" method="post">
+                                
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-outline-danger btn-sm w-100">Remove</button>
                             </form>

@@ -1,0 +1,13 @@
+{% extends 'shop/base.html' %}
+{% block content %}
+<div class="container py-5">
+  <h2>Order Summary</h2>
+  <p><strong>Shipping To:</strong> {{ order.address.full_name }}, {{ order.address.city }}</p>
+  <p><strong>Total Price:</strong> ₹{{ order.total_price }}</p>
+  <p><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+  <form method="post" action="{% url 'shop:place_order' order.id %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary mt-3">Place Order</button>
+  </form>
+</div>
+{% endblock %}

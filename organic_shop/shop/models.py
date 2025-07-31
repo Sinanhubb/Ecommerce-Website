@@ -81,15 +81,6 @@ class CartItem(models.Model):
         return 0
 
 
-class Wishlist(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    added_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('user', 'product')
-
-
 class Review(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='reviews')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -99,4 +90,3 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.rating}⭐"
-

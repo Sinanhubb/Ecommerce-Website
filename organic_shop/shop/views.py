@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from .models import Category, Product, Cart, CartItem,Wishlist,Review
+from .models import Category, Product, Cart, CartItem, Review
 from .forms import CartAddProductForm,ReviewForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -161,7 +161,7 @@ def get_or_create_cart(request):
     return cart
 
 def checkout(request):
-    return render(request, 'shop/checkout.html')
+    return render(request, 'accounts/checkout.html')
 
 def ajax_search(request):
     query = request.GET.get('q', '')
@@ -199,8 +199,6 @@ def update_cart_item(request, item_id):
     except (ValueError, TypeError):
         pass
     return redirect('shop:cart_detail')
-
-
 
 
 @csrf_exempt
@@ -241,31 +239,8 @@ def buy_now(request, product_id):
         item.quantity += 1
         item.save()
 
-    return redirect('shop:checkout')
+    return redirect('accounts:checkout')
 
-
-@login_required
-def add_to_wishlist(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
-    Wishlist.objects.get_or_create(user=request.user, product=product)
-    return redirect('shop:product_detail', slug=product.slug )
-
-@login_required
-def wishlist_view(request):
-    wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product')
-    wishlist_count = wishlist_items.count()
-    return render(request, 'shop/wishlist.html', {
-        'wishlist_items': wishlist_items,
-        'wishlist_count': wishlist_count
-    })
-
-
-@login_required
-@require_POST
-def remove_from_wishlist(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
-    Wishlist.objects.filter(user=request.user, product=product).delete()
-    return redirect('shop:wishlist')
 
 
 

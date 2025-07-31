@@ -21,10 +21,12 @@
                             <span>₹{{ product.price }}</span>
                         {% endif %}
                     </div>
-                    <form action="{% url 'shop:buy_now' product.id %}" method="post" class="mt-2">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-success">Buy Now</button>
-                    </form>
+                    <form action="{% url 'accounts:direct_checkout' product.id %}" method="POST">
+
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success">Buy Now</button>
+</form>
+
 
                     <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary mt-2">View Details</a>
                 </div>
