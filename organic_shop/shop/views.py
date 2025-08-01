@@ -229,17 +229,22 @@ def buy_now(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     cart = get_or_create_cart(request)
 
-    # Add 1 quantity by default
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+    except ValueError:
+        quantity = 1
+
     item, created = CartItem.objects.get_or_create(
         cart=cart,
         product=product,
-        defaults={'quantity': 1}
+        defaults={'quantity': quantity}
     )
     if not created:
-        item.quantity += 1
+        item.quantity += quantity
         item.save()
 
     return redirect('accounts:checkout')
+
 
 
 

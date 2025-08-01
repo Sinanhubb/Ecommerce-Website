@@ -17,14 +17,6 @@ urlpatterns = [
     path('address/edit/<int:address_id>/', views.edit_address, name='edit_address'),
     path('order-summary/<int:order_id>/', views.order_summary, name='order_summary'),
     path('place-order/<int:order_id>/', views.place_order, name='place_order'),
-   # accounts/urls.py
-path('direct-checkout/<int:pk>/', views.direct_checkout, name='direct_checkout')
-
-
-   
-
-
-
-
+    path('direct-checkout/<int:pk>/', views.direct_checkout, name='direct_checkout')
 
 ]
