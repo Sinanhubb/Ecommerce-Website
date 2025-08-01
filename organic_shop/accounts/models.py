@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from shop.models import Product
 
-
+# Wishlist
 class Wishlist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_wishlist')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='account_wishlist_items')
@@ -12,6 +12,7 @@ class Wishlist(models.Model):
         unique_together = ('user', 'product')
 
 
+# Address
 class Address(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses')
     full_name = models.CharField(max_length=100)
@@ -26,6 +27,7 @@ class Address(models.Model):
         return f"{self.full_name}, {self.city}, {self.country}"
 
 
+# Promo Code
 class PromoCode(models.Model):
     code = models.CharField(max_length=20, unique=True)
     discount_percentage = models.PositiveIntegerField(default=0)
@@ -35,24 +37,34 @@ class PromoCode(models.Model):
         return self.code
 
 
+# ✅ KEEP ONLY THIS Order MODEL (merged all fields)
 class Order(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('shipped', 'Shipped'),
+        ('delivered', 'Delivered'),
+        ('cancelled', 'Cancelled'),
+    ]
     PAYMENT_CHOICES = [
         ('COD', 'Cash on Delivery'),
-        ('ONLINE', 'Online Payment')
+        ('ONLINE', 'Online Payment'),
     ]
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default='COD')
-    is_paid = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
     promo_code = models.ForeignKey(PromoCode, on_delete=models.SET_NULL, null=True, blank=True)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default='COD')
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    is_paid = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Order #{self.id} - {self.user.username}"
 
 
+# Order Item
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)

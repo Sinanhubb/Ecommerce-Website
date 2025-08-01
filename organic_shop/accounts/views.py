@@ -8,8 +8,8 @@ from django.http import JsonResponse
 import json
 
 from .models import Wishlist, Address, PromoCode, Order, OrderItem
-from .forms import AddressForm
-from shop.models import Cart, CartItem, Product
+from .forms import AddressForm,UserProfileForm
+from shop.models import Cart, CartItem, Product,Review
 
 # --- AUTH --- (unchanged)
 def user_login(request):
@@ -55,13 +55,23 @@ def register_view(request):
 
 @login_required
 def profile_view(request):
-    cart = Cart.objects.filter(user=request.user).first()
+    user = request.user
+    cart = Cart.objects.filter(user=user).first()
+    addresses = Address.objects.filter(user=user)
     cart_items = cart.items.select_related('product') if cart else []
     total_price = sum(item.total_price for item in cart_items)
+    wishlist = Wishlist.objects.filter(user=user).select_related('product')
+    
+    reviews = Review.objects.filter(user=user).select_related('product').order_by('-created_at')
+    
     return render(request, 'accounts/profile.html', {
         'cart_items': cart_items,
         'total_price': total_price,
+        'reviews': reviews, 
+        'addresses': addresses,
+        'wishlist': wishlist, # pass reviews to template
     })
+
 
 @login_required
 def user_logout(request):
@@ -150,6 +160,7 @@ def checkout(request):
                 
                 # Update stock
                 product.stock -= direct_data['quantity']
+                product.sold_count += direct_data['quantity']
                 product.save()
                 
                 # Clear session data
@@ -202,12 +213,18 @@ def checkout(request):
                 )
                 
                 for cart_item in cart.items.all():
+                    product = cart_item.product
                     OrderItem.objects.create(
                         order=order,
-                        product=cart_item.product,
-                        price=cart_item.product.price,
+                        product=product,
+                        price=product.price,
                         quantity=cart_item.quantity
                     )
+                    
+                   
+                    product.stock -= cart_item.quantity
+                    product.save()
+
                 
                 return redirect('accounts:order_summary', order_id=order.id)
 
@@ -311,3 +328,63 @@ def edit_address(request, address_id):
         return redirect('accounts:checkout')
 
     return render(request, 'accounts/edit_address.html', {'address': address})
+
+
+@login_required
+def edit_profile_view(request):
+    user = request.user
+    form = UserProfileForm(instance=user)
+
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profile updated successfully.")
+            return redirect('accounts:profile')
+        else:
+            messages.error(request, "Please correct the errors below.")
+
+    return render(request, 'accounts/edit_profile.html', {'form': form})
+
+
+@login_required
+def my_orders_view(request):
+    orders = Order.objects.filter(user=request.user).order_by('-created_at').prefetch_related('items__product')
+    return render(request, 'accounts/my_orders.html', {'orders': orders})
+
+
+
+@login_required
+def order_detail_view(request, order_id):
+    order = get_object_or_404(
+        Order.objects.select_related('address', 'promo_code')
+                     .prefetch_related('items__product'),
+        id=order_id,
+        user=request.user
+    )
+
+    subtotal = sum(item.price * item.quantity for item in order.items.all())
+    discount = (order.promo_code.discount_percentage / 100) * subtotal if order.promo_code else 0
+    total = order.total_price
+
+    return render(request, 'accounts/order_detail.html', {
+        'order': order,
+        'items': order.items.all(),
+        'subtotal': subtotal,
+        'discount': discount,
+        'total': total
+    })
+
+@login_required
+def order_tracking_view(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    return render(request, 'accounts/order_tracking.html', {'order': order})
+
+
+def delete_address(request, pk):
+    address = get_object_or_404(Address, pk=pk, user=request.user)
+    address.delete()
+    messages.success(request, "Address deleted successfully.")
+    return redirect('accounts:profile') 
+
+

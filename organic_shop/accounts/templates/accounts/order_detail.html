@@ -1,0 +1,43 @@
+{% extends 'shop/base.html' %}
+{% block content %}
+<div class="container py-5">
+  <h2 class="mb-4">🧾 Order #{{ order.id }} Details</h2>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <p><strong>Order Date:</strong> {{ order.created_at|date:"d M Y, H:i A" }}</p>
+      <p><strong>Address:</strong> {{ order.address.full_name }}, {{ order.address.address_line }}, {{ order.address.city }}, {{ order.address.country }} - {{ order.address.postal_code }}</p>
+      <p><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header"><strong>Order Items</strong></div>
+    <ul class="list-group list-group-flush">
+      {% for item in items %}
+      <li class="list-group-item d-flex justify-content-between">
+        <div>
+          {{ item.product.name }} (x{{ item.quantity }})
+        </div>
+        <div>
+          ₹{{ item.price|floatformat:2 }}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card p-3 shadow-sm">
+    <p><strong>Subtotal:</strong> ₹{{ subtotal|floatformat:2 }}</p>
+    {% if order.promo_code %}
+    <p><strong>Promo Code:</strong> {{ order.promo_code.code }} ({{ order.promo_code.discount_percentage }}% off)</p>
+    <p><strong>Discount:</strong> ₹{{ discount|floatformat:2 }}</p>
+    {% endif %}
+    <h5><strong>Total:</strong> ₹{{ total|floatformat:2 }}</h5>
+  </div>
+
+  <a href="{% url 'accounts:my_orders' %}" class="btn btn-secondary mt-3">← Back to My Orders</a>
+  <a href="{% url 'accounts:order_tracking' order.id %}" class="btn btn-outline-info btn-sm mt-2">Track Order</a>
+
+</div>
+{% endblock %}

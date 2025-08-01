@@ -1,0 +1,35 @@
+{% extends 'shop/base.html' %}
+{% block content %}
+<div class="container py-5">
+  <h2 class="mb-4">🚚 Order Tracking - Order #{{ order.id }}</h2>
+
+  <div class="card shadow-sm p-4">
+    <h5 class="mb-3">Current Status: <span class="badge bg-info text-dark">{{ order.get_status_display }}</span></h5>
+
+    <div class="progress mb-3" style="height: 20px;">
+      <div class="progress-bar 
+                  {% if order.status == 'pending' %}bg-secondary
+                  {% elif order.status == 'processing' %}bg-warning
+                  {% elif order.status == 'shipped' %}bg-primary
+                  {% elif order.status == 'delivered' %}bg-success
+                  {% elif order.status == 'cancelled' %}bg-danger
+                  {% endif %}"
+           role="progressbar"
+           style="width:
+                  {% if order.status == 'pending' %}10%
+                  {% elif order.status == 'processing' %}40%
+                  {% elif order.status == 'shipped' %}70%
+                  {% elif order.status == 'delivered' %}100%
+                  {% elif order.status == 'cancelled' %}100%
+                  {% endif %};"
+           aria-valuenow="50"
+           aria-valuemin="0"
+           aria-valuemax="100">
+        {{ order.get_status_display }}
+      </div>
+    </div>
+
+    <a href="{% url 'accounts:order_detail' order.id %}" class="btn btn-secondary mt-3">← Back to Order Detail</a>
+  </div>
+</div>
+{% endblock %}

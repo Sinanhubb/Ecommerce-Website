@@ -17,6 +17,18 @@ urlpatterns = [
     path('address/edit/<int:address_id>/', views.edit_address, name='edit_address'),
     path('order-summary/<int:order_id>/', views.order_summary, name='order_summary'),
     path('place-order/<int:order_id>/', views.place_order, name='place_order'),
-    path('direct-checkout/<int:pk>/', views.direct_checkout, name='direct_checkout')
+    path('direct-checkout/<int:pk>/', views.direct_checkout, name='direct_checkout'),
+    path('profile/edit/', views.edit_profile_view, name='edit_profile'),
+    path('profile/edit/', views.edit_profile_view, name='edit_profile'),
+    path('orders/', views.my_orders_view, name='my_orders'),
+    path('orders/<int:order_id>/', views.order_detail_view, name='order_detail'),
+    path('orders/<int:order_id>/tracking/', views.order_tracking_view, name='order_tracking'),
+    path('address/delete/<int:pk>/', views.delete_address, name='delete_address'),
+
+
+
+
+
+
 
 ]
