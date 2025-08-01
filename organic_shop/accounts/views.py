@@ -295,26 +295,21 @@ def place_order(request, order_id):
     
     return render(request, 'accounts/order_success.html', {'order': order})
 
-# --- ADDRESS MANAGEMENT --- (unchanged)
+
 @login_required
 def add_address(request):
     if request.method == 'POST':
-        required_fields = ['full_name', 'phone', 'address_line', 'city', 'postal_code', 'country']
-        if all(request.POST.get(field, '').strip() for field in required_fields):
-            Address.objects.create(
-                user=request.user,
-                full_name=request.POST['full_name'],
-                phone=request.POST['phone'],
-                address_line=request.POST['address_line'],
-                city=request.POST['city'],
-                postal_code=request.POST['postal_code'],
-                country=request.POST['country'],
-            )
+        form = AddressForm(request.POST)
+        if form.is_valid():
+            address = form.save(commit=False)
+            address.user = request.user
+            address.save()
             messages.success(request, 'Address added successfully.')
             return redirect('accounts:checkout')
-        messages.error(request, 'Please fill in all fields.')
+    else:
+        form = AddressForm()
 
-    return render(request, 'accounts/add_address.html')
+    return render(request, 'accounts/add_address.html', {'form': form})
 
 @login_required
 def edit_address(request, address_id):

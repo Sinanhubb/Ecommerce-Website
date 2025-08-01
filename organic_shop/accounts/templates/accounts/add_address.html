@@ -3,35 +3,22 @@
 {% block content %}
 <div class="container py-5">
     <h2 class="mb-4">Add New Address</h2>
-    <form method="POST">
+
+    <form method="POST" novalidate>
         {% csrf_token %}
-        <div class="mb-3">
-            <label>Full Name</label>
-            <input type="text" name="full_name" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Phone</label>
-            <input type="text" name="phone" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Address Line</label>
-            <input type="text" name="address_line" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>City</label>
-            <input type="text" name="city" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Postal Code</label>
-            <input type="text" name="postal_code" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Country</label>
-            <input type="text" name="country" class="form-control" required>
-        </div>
+        {{ form.non_field_errors }}
+
+        {% for field in form %}
+            <div class="mb-3">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <div class="text-danger small">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+
         <button type="submit" class="btn btn-success">Save Address</button>
     </form>
 </div>
 {% endblock %}
-
-
