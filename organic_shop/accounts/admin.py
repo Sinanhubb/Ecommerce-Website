@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Order, OrderItem
+from .models import Order, OrderItem,Address,PromoCode
 
 class OrderItemInline(admin.TabularInline):  
     model = OrderItem
@@ -15,3 +15,5 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ['user__username', 'id']
 
 admin.site.register(Order, OrderAdmin)
+admin.site.register(Address)
+admin.site.register(PromoCode)

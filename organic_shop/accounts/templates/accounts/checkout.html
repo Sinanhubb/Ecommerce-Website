@@ -32,12 +32,12 @@
                                             <div class="d-flex justify-content-between">
                                                 <strong>{{ addr.full_name }}</strong>
                                                 <small>
-                                                    <a href="{% url 'accounts:edit_address' addr.id %}" class="text-decoration-none">
+                                                    <a href="{% url 'accounts:edit_address' addr.id %}?next={{ request.path }}" class="text-decoration-none">
                                                         <i class="fas fa-edit"></i> Edit
                                                     </a>
-                                                </small>
+                                              </small>
                                             </div>
-                                            <p class="mb-1">{{ addr.address_line }}, {{ addr.city }}, {{ addr.state }} - {{ addr.pincode }}</p>
+                                            <p class="mb-1">{{ addr.address_line }}, {{ addr.city }}, {{ addr.country }} - {{ addr.postal_code }}</p>
                                             <small class="text-muted">Phone: {{ addr.phone }}</small>
                                         </div>
                                     </label>
@@ -53,15 +53,27 @@
                         <!-- Promo Code -->
                         <div class="mb-4">
                             <h4 class="mb-3">Promo Code</h4>
-                            <div class="input-group">
-                                <input type="text" name="promo_code" class="form-control" placeholder="Enter promo code" value="{{ applied_promo_code }}">
-                                <button class="btn btn-outline-secondary" type="submit">Apply</button>
-                            </div>
-                            {% if promo_error %}
-                                <div class="text-danger mt-2">{{ promo_error }}</div>
+
+                            {% if applied_promo_code %}
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="text-success">
+                                        <strong>{{ applied_promo_code }}</strong> applied.
+                                    </div>
+                                    <a href="?remove_promo=1" class="btn btn-sm btn-outline-danger ms-3">
+                                        <i class="fas fa-times"></i> Remove
+                                    </a>
+                                </div>
+                            {% else %}
+                                <div class="input-group">
+                                    <input type="text" name="promo_code" class="form-control" placeholder="Enter promo code">
+                                    <button class="btn btn-outline-secondary" type="submit" name="apply_promo" value="1">Apply</button>
+                                </div>
                             {% endif %}
-                            {% if promo_success %}
-                                <div class="text-success mt-2">{{ promo_success }}</div>
+
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="mt-2 text-{{ message.tags }}">{{ message }}</div>
+                                {% endfor %}
                             {% endif %}
                         </div>
 
@@ -83,7 +95,7 @@
                         </div>
 
                         <!-- Submit -->
-                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-3">
+                        <button type="submit" name="place_order" value="1" class="btn btn-primary btn-lg w-100 mt-3">
                             Proceed to Order Summary
                         </button>
                     </form>
@@ -91,50 +103,63 @@
             </div>
         </div>
 
-        <!-- Right: Order Summary -->
-        <div class="col-lg-4">
-            <div class="card mb-4">
-                <div class="card-header bg-white">
-                    <h4 class="mb-0">Order Summary</h4>
-                </div>
-                <div class="card-body">
-                    {% for item in products %}
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between">
-                            <strong>{{ item.product.name }}</strong>
-                            <span>Qty: {{ item.quantity }}</span>
+        
+<div class="col-lg-4">
+    <div class="card mb-4">
+        <div class="card-header bg-white">
+            <h4 class="mb-0">Order Summary</h4>
+        </div>
+        <div class="card-body p-0">
+            <!-- Product Items -->
+            <div class="list-group list-group-flush">
+                {% for item in products %}
+                <div class="list-group-item py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ item.product.name }}</h6>
+                            <span class="text-muted small">{{ item.quantity }} item{{ item.quantity|pluralize }}</span>
                         </div>
-                        <div class="text-muted small">₹{{ item.price }} each</div>
-                        <div class="text-end fw-semibold">Subtotal: ₹{{ item.total_price }}</div>
-                        <hr>
+                        <div class="text-end">
+                            <strong>₹{{ item.total_price|floatformat:2 }}</strong>
+                        </div>
                     </div>
-                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
 
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between">
-                            Subtotal
-                            <span>₹{{ total_price }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            Shipping
-                            <span>Free</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            Discount
-                            <span class="text-danger">-₹{{ discount }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            <strong>Total</strong>
-                            <strong>₹{{ total }}</strong>
-                        </li>
-                    </ul>
+            <!-- Order Totals -->
+            <div class="list-group list-group-flush border-top">
+                <div class="list-group-item d-flex justify-content-between py-2">
+                    <span>Subtotal ({{ cart_items_count }} item{{ cart_items_count|pluralize }})</span>
+                    <span>₹{{ subtotal|floatformat:2 }}</span>
+                    
+                </div>
+                <div class="list-group-item d-flex justify-content-between py-2">
+                    <span>Shipping</span>
+                    <span class="text-success">Free</span>
+                </div>
+                {% if discount %}
+                <div class="list-group-item d-flex justify-content-between py-2 text-success">
+                    <span>Discount ({{ applied_promo_code }})</span>
+                    <span>-₹{{ discount|floatformat:2 }}</span>
+                </div>
+                {% endif %}
+                <div class="list-group-item d-flex justify-content-between py-3 bg-light">
+                    <strong>Total</strong>
+                    <strong>₹{{ total|floatformat:2 }}</strong>
+                </div>
+            </div>
 
-                    <div class="alert alert-info mt-3">
-                        <i class="fas fa-info-circle"></i> Your order will be processed within 24 hours.
-                    </div>
+            <!-- Info Note -->
+            <div class="p-3">
+                <div class="alert alert-info mb-0 py-2">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Your order will be processed within 24 hours.
                 </div>
             </div>
         </div>
+    </div>
+</div>
     </div>
 </div>
 {% endblock %}

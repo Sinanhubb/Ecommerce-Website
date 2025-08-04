@@ -5,13 +5,12 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-import json
-
 from .models import Wishlist, Address, PromoCode, Order, OrderItem
 from .forms import AddressForm,UserProfileForm
 from shop.models import Cart, CartItem, Product,Review
+import json
+from decimal import Decimal
 
-# --- AUTH --- (unchanged)
 def user_login(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -45,6 +44,14 @@ def user_login(request):
 
     return render(request, 'accounts/login.html')
 
+
+@login_required
+def user_logout(request):
+    logout(request)
+    messages.success(request, 'You have been logged out.')
+    return redirect('accounts:login')
+
+
 def register_view(request):
     form = UserCreationForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -69,17 +76,29 @@ def profile_view(request):
         'total_price': total_price,
         'reviews': reviews, 
         'addresses': addresses,
-        'wishlist': wishlist, # pass reviews to template
+        'wishlist': wishlist,
     })
 
 
 @login_required
-def user_logout(request):
-    logout(request)
-    messages.success(request, 'You have been logged out.')
-    return redirect('accounts:login')
+def edit_profile_view(request):
+    user = request.user
+    form = UserProfileForm(instance=user)
 
-# --- WISHLIST --- (unchanged)
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profile updated successfully.")
+            return redirect('accounts:profile')
+        else:
+            messages.error(request, "Please correct the errors below.")
+
+    return render(request, 'accounts/edit_profile.html', {'form': form})
+
+
+
+
 @login_required
 def wishlist_view(request):
     wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product')
@@ -100,143 +119,174 @@ def remove_from_wishlist(request, product_id):
     Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
     return redirect('accounts:wishlist')
 
-# --- CHECKOUT SYSTEM ---
 
+
+@login_required
 def checkout(request):
     user = request.user
     direct_data = request.session.get('direct_checkout')
+    applied_promo_code = request.session.get('applied_promo_code')
+
     
+    if request.GET.get('remove_promo') == '1':
+        request.session.pop('applied_promo_code', None)
+        messages.success(request, "Promo code removed successfully.")
+        return redirect('accounts:checkout')
+
+    
+    def get_promo_discount(subtotal):
+        promo_code_obj = None
+        discount = 0
+        total = subtotal
+
+        if applied_promo_code:
+            try:
+                promo_code_obj = PromoCode.objects.get(code=applied_promo_code, active=True)
+                discount = (Decimal(promo_code_obj.discount_percentage) / Decimal('100')) * subtotal
+                total = subtotal - discount
+            except PromoCode.DoesNotExist:
+                request.session.pop('applied_promo_code', None)
+                messages.error(request, "Invalid or expired promo code.")
+                promo_code_obj = None
+
+        return promo_code_obj, discount, total
+
+    # Handle Direct Checkout
     if direct_data:
         product = get_object_or_404(Product, id=direct_data['product_id'])
-        total = float(direct_data['price']) * direct_data['quantity']
+        quantity = direct_data['quantity']
+        price = Decimal(direct_data['price'])
+        subtotal = price * quantity
         addresses = Address.objects.filter(user=user)
-        
+
+        promo_code_obj, discount, total = get_promo_discount(subtotal)
+
         if request.method == 'POST':
-            selected_address_id = request.POST.get('selected_address')
-            payment_method = request.POST.get('payment_method')
-            promo_code_input = request.POST.get('promo_code')
-            
-            # Initialize total price
-            total = direct_data['price'] * direct_data['quantity']
-            discount = 0
-            promo_code_obj = None
-            
-            # Handle promo code if provided
-            if promo_code_input:
-                try:
-                    promo_code_obj = PromoCode.objects.get(code=promo_code_input, active=True)
-                    discount = (promo_code_obj.discount_percentage / 100) * total
-                    total -= discount
-                except PromoCode.DoesNotExist:
-                    messages.error(request, "Invalid or expired promo code.")
-                    return render(request, 'accounts/checkout.html', {
-                        'addresses': addresses,
-                        'direct_product': product,
-                        'direct_quantity': direct_data['quantity'],
-                        'total': total,
-                        'is_direct_checkout': True,
-                        'promo_error': "Invalid or expired promo code."
-                    })
-            
-            if selected_address_id and payment_method:
-                address = Address.objects.get(id=selected_address_id)
-                
-                # Create order
-                order = Order.objects.create(
-                    user=user,
-                    address=address,
-                    total_price=total,
-                    payment_method=payment_method,
-                    promo_code=promo_code_obj
-                )
-                
-                # Create order item
-                OrderItem.objects.create(
-                    order=order,
-                    product=product,
-                    price=direct_data['price'],
-                    quantity=direct_data['quantity'],
-                )
-                
-                # Update stock
-                product.stock -= direct_data['quantity']
-                product.sold_count += direct_data['quantity']
-                product.save()
-                
-                # Clear session data
-                del request.session['direct_checkout']
-                
-                return redirect('accounts:order_summary', order_id=order.id)
-        
+            if 'apply_promo' in request.POST:
+                promo_code_input = request.POST.get('promo_code', '').strip()
+                if promo_code_input:
+                    try:
+                        promo = PromoCode.objects.get(code=promo_code_input, active=True)
+                        request.session['applied_promo_code'] = promo.code
+                        messages.success(request, "Promo code applied successfully!")
+                    except PromoCode.DoesNotExist:
+                        messages.error(request, "Invalid or expired promo code.")
+                return redirect('accounts:checkout')
+
+            elif 'place_order' in request.POST:
+                selected_address_id = request.POST.get('selected_address')
+                payment_method = request.POST.get('payment_method')
+
+                if selected_address_id and payment_method:
+                    address = Address.objects.get(id=selected_address_id)
+                    order = Order.objects.create(
+                        user=user,
+                        address=address,
+                        total_price=total,
+                        payment_method=payment_method,
+                        promo_code=promo_code_obj
+                    )
+
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        price=price,
+                        quantity=quantity
+                    )
+
+                    product.stock -= quantity
+                    product.sold_count += quantity
+                    product.save()
+
+                    del request.session['direct_checkout']
+                    request.session.pop('applied_promo_code', None)
+
+                    return redirect('accounts:order_summary', order_id=order.id)
+
         return render(request, 'accounts/checkout.html', {
-            'addresses': addresses,
-            'direct_product': product,
-            'direct_quantity': direct_data['quantity'],
-            'total': direct_data['price'] * direct_data['quantity'],
-            'is_direct_checkout': True
-        })
-    
+    'addresses': addresses,
+    'products': [{
+        'product': product,
+        'quantity': quantity,
+        'price': price,
+        'total_price': price * quantity
+    }],
+    'cart_items_count': quantity,  # For direct checkout, quantity = total items
+    'subtotal': subtotal,
+    'discount': discount,
+    'total': total,
+    'is_direct_checkout': True,
+    'applied_promo_code': applied_promo_code
+})
+
+    # Handle Regular Cart Checkout
     else:
-        # Regular cart checkout flow
         cart = Cart.objects.filter(user=user).first()
         if not cart or not cart.items.exists():
             messages.warning(request, "Your cart is empty.")
             return redirect('shop:index')
 
         addresses = Address.objects.filter(user=user)
-        promo_error = ''
-        promo_code_obj = None
-        discount = 0
-        total = cart.total_price
+        subtotal = cart.total_price
+
+        promo_code_obj, discount, total = get_promo_discount(subtotal)
 
         if request.method == 'POST':
-            selected_address_id = request.POST.get('selected_address')
-            payment_method = request.POST.get('payment_method')
-            promo_code_input = request.POST.get('promo_code')
+            if 'apply_promo' in request.POST:
+                promo_code_input = request.POST.get('promo_code', '').strip()
+                if promo_code_input:
+                    try:
+                        promo = PromoCode.objects.get(code=promo_code_input, active=True)
+                        request.session['applied_promo_code'] = promo.code
+                        messages.success(request, "Promo code applied successfully!")
+                    except PromoCode.DoesNotExist:
+                        messages.error(request, "Invalid or expired promo code.")
+                return redirect('accounts:checkout')
 
-            if promo_code_input:
-                try:
-                    promo_code_obj = PromoCode.objects.get(code=promo_code_input, active=True)
-                    discount = (promo_code_obj.discount_percentage / 100) * total
-                    total -= discount
-                except PromoCode.DoesNotExist:
-                    promo_error = "Invalid or expired promo code."
+            elif 'place_order' in request.POST:
+                selected_address_id = request.POST.get('selected_address')
+                payment_method = request.POST.get('payment_method')
 
-            if selected_address_id and payment_method:
-                address = Address.objects.get(id=selected_address_id)
-                order = Order.objects.create(
-                    user=user,
-                    address=address,
-                    total_price=total,
-                    promo_code=promo_code_obj,
-                    payment_method=payment_method
-                )
-                
-                for cart_item in cart.items.all():
-                    product = cart_item.product
-                    OrderItem.objects.create(
-                        order=order,
-                        product=product,
-                        price=product.price,
-                        quantity=cart_item.quantity
+                if selected_address_id and payment_method:
+                    address = Address.objects.get(id=selected_address_id)
+                    order = Order.objects.create(
+                        user=user,
+                        address=address,
+                        total_price=total,
+                        promo_code=promo_code_obj,
+                        payment_method=payment_method
                     )
-                    
-                   
-                    product.stock -= cart_item.quantity
-                    product.save()
 
-                
-                return redirect('accounts:order_summary', order_id=order.id)
+                    for cart_item in cart.items.all():
+                        OrderItem.objects.create(
+                            order=order,
+                            product=cart_item.product,
+                            price=cart_item.product.price,
+                            quantity=cart_item.quantity
+                        )
+                        cart_item.product.stock -= cart_item.quantity
+                        cart_item.product.save()
+
+                    cart.delete()
+                    request.session.pop('applied_promo_code', None)
+
+                    return redirect('accounts:order_summary', order_id=order.id)
 
         return render(request, 'accounts/checkout.html', {
-            'addresses': addresses,
-            'cart': cart,
-            'promo_error': promo_error,
-            'total': total,
-            'discount': discount,
-            'is_direct_checkout': False
-        })
-
+    'addresses': addresses,
+    'products': [{
+        'product': item.product,
+        'quantity': item.quantity,
+        'price': item.product.price,
+        'total_price': item.product.price * item.quantity
+    } for item in cart.items.all()],
+    'cart_items_count': cart.items.count(),
+    'subtotal': subtotal,
+    'discount': discount,
+    'total': total,
+    'is_direct_checkout': False,
+    'applied_promo_code': applied_promo_code
+})
 @login_required
 def direct_checkout(request, pk):
     product = get_object_or_404(Product, pk=pk)
@@ -256,44 +306,11 @@ def direct_checkout(request, pk):
     request.session['direct_checkout'] = {
         'product_id': product.id,
         'quantity': quantity,
-        'price': price  # Now storing as float instead of Decimal
+        'price': price  
     }
     
     return redirect('accounts:checkout')
 
-@login_required
-def order_summary(request, order_id):
-    order = get_object_or_404(
-        Order.objects.select_related('address', 'promo_code')
-                   .prefetch_related('items__product'),
-        id=order_id,
-        user=request.user
-    )
-    
-    subtotal = sum(item.price * item.quantity for item in order.items.all())
-    discount = order.promo_code.discount_percentage / 100 * subtotal if order.promo_code else 0
-    total = order.total_price
-    
-    context = {
-        'order': order,
-        'subtotal': subtotal,
-        'discount': discount,
-        'total': total,
-        'items': order.items.all()
-    }
-    return render(request, 'accounts/order_summary.html', context)
-
-@login_required
-def place_order(request, order_id):
-    order = get_object_or_404(Order, id=order_id, user=request.user)
-    order.is_paid = True
-    order.save()
-    
-    # Clear cart only if this was a cart checkout
-    if not request.session.get('direct_checkout'):
-        Cart.objects.filter(user=request.user).delete()
-    
-    return render(request, 'accounts/order_success.html', {'order': order})
 
 
 @login_required
@@ -315,31 +332,28 @@ def add_address(request):
 def edit_address(request, address_id):
     address = get_object_or_404(Address, id=address_id, user=request.user)
 
+    next_url = request.GET.get('next') or request.POST.get('next') or reverse('accounts:profile')
+
     if request.method == 'POST':
-        for field in ['full_name', 'phone', 'address_line', 'city', 'postal_code', 'country']:
+        for field in ['full_name', 'phone', 'address_line', 'city', 'state', 'postal_code', 'country']:
             setattr(address, field, request.POST.get(field, '').strip())
         address.save()
         messages.success(request, 'Address updated successfully.')
-        return redirect('accounts:checkout')
+        return redirect(next_url)
 
-    return render(request, 'accounts/edit_address.html', {'address': address})
+    return render(request, 'accounts/edit_address.html', {
+        'address': address,
+        'next': next_url
+    })
 
 
-@login_required
-def edit_profile_view(request):
-    user = request.user
-    form = UserProfileForm(instance=user)
+def delete_address(request, pk):
+    address = get_object_or_404(Address, pk=pk, user=request.user)
+    address.delete()
+    messages.success(request, "Address deleted successfully.")
+    return redirect('accounts:profile') 
 
-    if request.method == 'POST':
-        form = UserProfileForm(request.POST, instance=user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Profile updated successfully.")
-            return redirect('accounts:profile')
-        else:
-            messages.error(request, "Please correct the errors below.")
 
-    return render(request, 'accounts/edit_profile.html', {'form': form})
 
 
 @login_required
@@ -359,7 +373,7 @@ def order_detail_view(request, order_id):
     )
 
     subtotal = sum(item.price * item.quantity for item in order.items.all())
-    discount = (order.promo_code.discount_percentage / 100) * subtotal if order.promo_code else 0
+    discount = (Decimal(order.promo_code.discount_percentage) / Decimal('100')) * subtotal if order.promo_code else Decimal('0')
     total = order.total_price
 
     return render(request, 'accounts/order_detail.html', {
@@ -375,11 +389,42 @@ def order_tracking_view(request, order_id):
     order = get_object_or_404(Order, id=order_id, user=request.user)
     return render(request, 'accounts/order_tracking.html', {'order': order})
 
+@login_required
+def place_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    order.is_paid = True
+    order.save()
+    
+  
+    if not request.session.get('direct_checkout'):
+        Cart.objects.filter(user=request.user).delete()
+    
+    return render(request, 'accounts/order_success.html', {'order': order})
 
-def delete_address(request, pk):
-    address = get_object_or_404(Address, pk=pk, user=request.user)
-    address.delete()
-    messages.success(request, "Address deleted successfully.")
-    return redirect('accounts:profile') 
+
+@login_required
+def order_summary(request, order_id):
+    order = get_object_or_404(
+        Order.objects.select_related('address', 'promo_code')
+                   .prefetch_related('items__product'),
+        id=order_id,
+        user=request.user
+    )
+    
+    subtotal = sum(item.price * item.quantity for item in order.items.all())
+    discount = (Decimal(order.promo_code.discount_percentage) / Decimal('100')) * subtotal if order.promo_code else Decimal('0')
+    total = order.total_price
+    
+    context = {
+        'order': order,
+        'subtotal': subtotal,
+        'discount': discount,
+        'total': total,
+        'items': order.items.all()
+    }
+    return render(request, 'accounts/order_summary.html', context)
+
+
+
 
 

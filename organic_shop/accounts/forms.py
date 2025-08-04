@@ -5,12 +5,13 @@ import re
 class AddressForm(forms.ModelForm):
     class Meta:
         model = Address
-        fields = ['full_name', 'phone', 'address_line', 'city', 'postal_code', 'country']
+        fields = ['full_name', 'phone', 'address_line', 'city','state' ,'postal_code', 'country']
         widgets = {
             'full_name': forms.TextInput(attrs={'class': 'form-control'}),
             'phone': forms.TextInput(attrs={'class': 'form-control'}),
             'address_line': forms.TextInput(attrs={'class': 'form-control'}),
             'city': forms.TextInput(attrs={'class': 'form-control'}),
+            'state': forms.TextInput(attrs={'class': 'form-control'}),
             'postal_code': forms.TextInput(attrs={'class': 'form-control'}),
             'country': forms.TextInput(attrs={'class': 'form-control'}),
         }

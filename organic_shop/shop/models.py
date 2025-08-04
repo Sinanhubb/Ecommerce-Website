@@ -90,3 +90,30 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.rating}⭐"
+
+
+class VariantOption(models.Model):
+    name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.name
+
+class VariantValue(models.Model):
+    option = models.ForeignKey(VariantOption, on_delete=models.CASCADE)
+    value = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.option.name}: {self.value}"
+
+
+class ProductVariant(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    values = models.ManyToManyField(VariantValue)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    stock = models.IntegerField()
+    sku = models.CharField(max_length=50, unique=True)
+    image = models.ImageField(upload_to='variants/', null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.product.name} - {', '.join(v.value for v in self.values.all())}"
+

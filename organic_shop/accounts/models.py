@@ -12,7 +12,7 @@ class Wishlist(models.Model):
         unique_together = ('user', 'product')
 
 
-# Address
+
 class Address(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses')
     full_name = models.CharField(max_length=100)
@@ -20,6 +20,7 @@ class Address(models.Model):
     address_line = models.TextField()
     city = models.CharField(max_length=50)
     postal_code = models.CharField(max_length=10)
+    state=models.CharField(max_length=50)
     country = models.CharField(max_length=50)
     is_default = models.BooleanField(default=False)
 
@@ -27,7 +28,7 @@ class Address(models.Model):
         return f"{self.full_name}, {self.city}, {self.country}"
 
 
-# Promo Code
+
 class PromoCode(models.Model):
     code = models.CharField(max_length=20, unique=True)
     discount_percentage = models.PositiveIntegerField(default=0)
@@ -37,7 +38,7 @@ class PromoCode(models.Model):
         return self.code
 
 
-# ✅ KEEP ONLY THIS Order MODEL (merged all fields)
+
 class Order(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
