@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, ProductImage, Cart, CartItem
+from .models import Category, Product, ProductImage, Cart, CartItem,VariantValue,VariantOption,ProductVariant
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -26,3 +26,8 @@ class CartAdmin(admin.ModelAdmin):
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):
     list_display = ['cart', 'product', 'quantity']
+
+
+admin.site.register(ProductVariant)
+admin.site.register(VariantOption)
+admin.site.register(VariantValue)

@@ -100,6 +100,28 @@
                         </button>
                     {% endif %}
                 </form>
+                <!-- Variant Options (Button Pills) -->
+                    <div id="variant-options">
+                    {% for option, values in variant_options.items %}
+                        <div class="mb-3">
+                        <label class="fw-bold">{{ option }}</label>
+                        <div class="btn-group d-flex flex-wrap" role="group" data-option="{{ option }}">
+                            {% for value in values %}
+                            <button type="button" class="btn btn-outline-secondary variant-btn m-1"
+                                    data-option="{{ option }}" data-value="{{ value }}">
+                                {{ value }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+
+                    <!-- Variant result area -->
+                    <div id="variant-info" class="mt-3 p-3 bg-light rounded text-muted">
+                    <em>Select variant options to see price and stock.</em>
+                    </div>
+
 
                 <!-- Buy Now Form -->
                 {% if product.stock > 0 %}
@@ -385,6 +407,60 @@ function toggleShareIcons() {
     const shareIcons = document.getElementById("share-icons");
     shareIcons.classList.toggle("d-none");
 }
+const selectedVariants = {};
+
+  document.querySelectorAll('.variant-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const option = btn.dataset.option;
+      const value = btn.dataset.value;
+
+      // Deselect others of same option
+      document.querySelectorAll(`.variant-btn[data-option="${option}"]`).forEach(b => {
+        b.classList.remove('active', 'btn-primary');
+        b.classList.add('btn-outline-secondary');
+      });
+
+      // Mark selected
+      btn.classList.add('active', 'btn-primary');
+      btn.classList.remove('btn-outline-secondary');
+
+      selectedVariants[option] = value;
+
+      // Check if all options selected
+      const totalOptions = document.querySelectorAll('.btn-group[data-option]').length;
+      if (Object.keys(selectedVariants).length === totalOptions) {
+        fetchVariantData();
+      }
+    });
+  });
+
+  function fetchVariantData() {
+    fetch("{% url 'shop:get_matching_variant' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}"
+      },
+      body: JSON.stringify({
+        product_id: {{ product.id }},
+        selected_values: Object.values(selectedVariants)
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      const infoDiv = document.getElementById('variant-info');
+      if (data.success) {
+        infoDiv.innerHTML = `
+          <strong>Price:</strong> ₹${data.price}<br/>
+          <strong>Stock:</strong> ${data.stock}<br/>
+          <strong>SKU:</strong> ${data.sku}<br/>
+          ${data.image ? `<img src="${data.image}" width="150"/>` : ''}
+        `;
+      } else {
+        infoDiv.innerHTML = `<em>${data.message || "Variant not found."}</em>`;
+      }
+    });
+  }
 
 // Simple image zoom effect
 document.getElementById('main-product-image').addEventListener('click', function() {
@@ -394,6 +470,12 @@ document.getElementById('main-product-image').addEventListener('click', function
 </script>
 
 <style>
+.variant-btn.active {
+  border-color: #0d6efd;
+  background-color: #0d6efd;
+  color: #fff;
+}
+
 .thumbnail-item.active {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);

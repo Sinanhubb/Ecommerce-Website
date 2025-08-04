@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from .models import Category, Product, Cart, CartItem, Review
+from .models import Category, Product, Cart, CartItem, Review,VariantOption,VariantValue,ProductVariant
 from .forms import CartAddProductForm,ReviewForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -85,6 +85,21 @@ def product_detail(request, slug):
     request.session['recently_viewed'] = recent[:5]
 
 
+    all_variants = ProductVariant.objects.filter(product=product).prefetch_related('values__option')
+    option_map = {}
+
+    for variant in all_variants:
+        for value in variant.values.all():
+            option_name = value.option.name
+            if option_name not in option_map:
+                option_map[option_name] = set()
+            option_map[option_name].add(value.value)
+
+    # Convert sets to sorted lists
+    for key in option_map:
+        option_map[key] = sorted(option_map[key])
+
+
 
     context = {
         'product': product,
@@ -94,6 +109,8 @@ def product_detail(request, slug):
         'average_rating': average_rating,
         'review_form': review_form,
         'recently_viewed': recently_viewed,
+        'variant_options': option_map,
+        'all_variants': all_variants,
 
     }
     return render(request, 'shop/product_detail.html', context)
@@ -244,6 +261,39 @@ def buy_now(request, product_id):
         item.save()
 
     return redirect('accounts:checkout')
+
+
+from .models import ProductVariant, VariantValue, Product
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def get_matching_variant(request):
+    import json
+    if request.method == "POST":
+        data = json.loads(request.body)
+        product_id = data.get("product_id")
+        selected_values = data.get("selected_values", [])
+
+        try:
+            product = Product.objects.get(id=product_id)
+            variants = ProductVariant.objects.filter(product=product)
+
+            for variant in variants:
+                variant_values = list(variant.values.values_list("value", flat=True))
+                if sorted(variant_values) == sorted(selected_values):
+                    return JsonResponse({
+                        "success": True,
+                        "price": str(variant.price),
+                        "stock": variant.stock,
+                        "sku": variant.sku,
+                        "image": variant.image.url if variant.image else ""
+                    })
+
+            return JsonResponse({"success": False, "message": "Variant not found"})
+        except Product.DoesNotExist:
+            return JsonResponse({"success": False, "message": "Product not found"})
+    return JsonResponse({"success": False, "message": "Invalid request"})
+
 
 
 

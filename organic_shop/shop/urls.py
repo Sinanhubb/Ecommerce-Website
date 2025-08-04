@@ -12,6 +12,7 @@ urlpatterns = [
     path('cart/', views.cart_detail, name='cart_detail'),
     path('cart/add/<int:product_id>/', views.cart_add, name='cart_add'),
     path('cart/remove/<int:product_id>/', views.cart_remove, name='cart_remove'),
+    path('get-matching-variant/', views.get_matching_variant, name='get_matching_variant'),
     
     path('cart/update/<int:item_id>/', views.update_cart_item, name='update_cart_item'),
     path('ajax/search/', views.ajax_search, name='ajax_search'),
