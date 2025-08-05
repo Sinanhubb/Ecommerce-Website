@@ -8,7 +8,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Avg
 import json
 
-
 def index(request):
     categories = Category.objects.all()
     featured_products = Product.objects.filter(available=True, is_featured=True)[:8]
@@ -134,20 +133,33 @@ def cart_add(request, product_id):
 
     if form.is_valid():
         cd = form.cleaned_data
+        quantity = cd['quantity']
+        variant_sku = request.POST.get('variant_id')
+        variant = None
+
+        if variant_sku:
+            variant = get_object_or_404(ProductVariant, sku=variant_sku)
+
         item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            defaults={'quantity': cd['quantity']}
+            variant=variant,
+            defaults={'quantity': quantity}
         )
         if not created:
-            item.quantity += cd['quantity']
+            item.quantity += quantity
             item.save()
-    return redirect('shop:cart_detail')
 
-def cart_remove(request, product_id):
+        return redirect('shop:cart_detail')  # ✅ Valid form path
+
+    # ❌ If form is invalid, redirect back or return an error page
+    return redirect('shop:product_detail', slug=product.slug) 
+
+@login_required
+def cart_remove(request, item_id):
     cart = get_or_create_cart(request)
-    product = get_object_or_404(Product, id=product_id)
-    cart.items.filter(product=product).delete()
+    item = get_object_or_404(CartItem, id=item_id, cart=cart)
+    item.delete()
     return redirect('shop:cart_detail')
 
 def cart_detail(request):
@@ -241,6 +253,8 @@ def update_cart_item_ajax(request):
     
 
 
+
+
 @login_required
 def buy_now(request, product_id):
     product = get_object_or_404(Product, id=product_id)
@@ -251,11 +265,20 @@ def buy_now(request, product_id):
     except ValueError:
         quantity = 1
 
+    variant_sku = request.POST.get('variant_id')
+    variant = None
+
+    if variant_sku:
+        variant = get_object_or_404(ProductVariant, sku=variant_sku)
+
+    # Create or update the cart item
     item, created = CartItem.objects.get_or_create(
         cart=cart,
         product=product,
+        variant=variant,
         defaults={'quantity': quantity}
     )
+
     if not created:
         item.quantity += quantity
         item.save()
@@ -263,36 +286,48 @@ def buy_now(request, product_id):
     return redirect('accounts:checkout')
 
 
-from .models import ProductVariant, VariantValue, Product
-from django.views.decorators.csrf import csrf_exempt
+
 
 @csrf_exempt
+@require_POST
 def get_matching_variant(request):
-    import json
-    if request.method == "POST":
+    try:
         data = json.loads(request.body)
         product_id = data.get("product_id")
         selected_values = data.get("selected_values", [])
 
-        try:
-            product = Product.objects.get(id=product_id)
-            variants = ProductVariant.objects.filter(product=product)
+        product = Product.objects.get(id=product_id)
+        variants = ProductVariant.objects.filter(product=product)
 
-            for variant in variants:
-                variant_values = list(variant.values.values_list("value", flat=True))
-                if sorted(variant_values) == sorted(selected_values):
-                    return JsonResponse({
-                        "success": True,
-                        "price": str(variant.price),
-                        "stock": variant.stock,
-                        "sku": variant.sku,
-                        "image": variant.image.url if variant.image else ""
-                    })
+        for variant in variants:
+            variant_values = list(variant.values.values_list("value", flat=True))
+            if sorted(variant_values) == sorted(selected_values):
+                # Calculate discount if available
+                price = float(variant.price)
+                original_price = float(product.price)
+                discount_percent = 0
 
-            return JsonResponse({"success": False, "message": "Variant not found"})
-        except Product.DoesNotExist:
-            return JsonResponse({"success": False, "message": "Product not found"})
-    return JsonResponse({"success": False, "message": "Invalid request"})
+                if original_price > price:
+                    discount_percent = int(((original_price - price) / original_price) * 100)
+
+                return JsonResponse({
+                    "success": True,
+                    "sku": variant.sku,
+                    "price": price,
+                    "original_price": original_price,
+                    "discount_percent": discount_percent,
+                    "stock": variant.stock,
+                    "image": variant.image.url if variant.image else "",
+                })
+
+        return JsonResponse({"success": False, "message": "Matching variant not found."})
+    
+    except Product.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Product not found."})
+    
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Error: {str(e)}"})
+
 
 
 

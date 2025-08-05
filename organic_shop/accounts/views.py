@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from .models import Wishlist, Address, PromoCode, Order, OrderItem
 from .forms import AddressForm,UserProfileForm
-from shop.models import Cart, CartItem, Product,Review
+from shop.models import Cart, CartItem, Product,Review,ProductVariant
 import json
 from decimal import Decimal
 
@@ -111,9 +111,14 @@ def wishlist_view(request):
 @login_required
 def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    Wishlist.objects.get_or_create(user=request.user, product=product)
-    return redirect('shop:product_detail', slug=product.slug)
+    variant_sku = request.GET.get('variant') or request.POST.get('variant_id')
+    variant = None
 
+    if variant_sku:
+        variant = get_object_or_404(ProductVariant, sku=variant_sku)
+
+    Wishlist.objects.get_or_create(user=request.user, product=product, variant=variant)
+    return redirect('shop:product_detail', slug=product.slug)
 @login_required
 def remove_from_wishlist(request, product_id):
     Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
@@ -154,8 +159,20 @@ def checkout(request):
     # Handle Direct Checkout
     if direct_data:
         product = get_object_or_404(Product, id=direct_data['product_id'])
+        variant = None
+        variant_id = direct_data.get('variant_id')
+        if variant_id:
+            try:
+                variant = ProductVariant.objects.get(sku=variant_id, product=product)
+            except ProductVariant.DoesNotExist:
+                messages.error(request, "Selected product variant does not exist anymore.")
+                del request.session['direct_checkout']
+                return redirect('shop:product_detail', slug=product.slug)
+
+
+
         quantity = direct_data['quantity']
-        price = Decimal(direct_data['price'])
+        price = variant.price
         subtotal = price * quantity
         addresses = Address.objects.filter(user=user)
 
@@ -190,12 +207,13 @@ def checkout(request):
                     OrderItem.objects.create(
                         order=order,
                         product=product,
+                        variant=variant,
                         price=price,
                         quantity=quantity
                     )
 
-                    product.stock -= quantity
-                    product.sold_count += quantity
+                    variant.stock -= quantity
+                    variant.sold_count += quantity 
                     product.save()
 
                     del request.session['direct_checkout']
@@ -208,6 +226,7 @@ def checkout(request):
     'products': [{
         'product': product,
         'quantity': quantity,
+        'variant': variant,
         'price': price,
         'total_price': price * quantity
     }],
@@ -261,10 +280,12 @@ def checkout(request):
                         OrderItem.objects.create(
                             order=order,
                             product=cart_item.product,
-                            price=cart_item.product.price,
+                            variant=cart_item.variant, 
+                            price=cart_item.variant.price if cart_item.variant else cart_item.product.price,
+
                             quantity=cart_item.quantity
                         )
-                        cart_item.product.stock -= cart_item.quantity
+                        cart_item.variant.stock -= cart_item.quantity 
                         cart_item.product.save()
 
                     cart.delete()
@@ -277,8 +298,9 @@ def checkout(request):
     'products': [{
         'product': item.product,
         'quantity': item.quantity,
-        'price': item.product.price,
-        'total_price': item.product.price * item.quantity
+        'price': item.variant.price if item.variant else item.product.price,
+        'total_price': (item.variant.price if item.variant else item.product.price) * item.quantity
+
     } for item in cart.items.all()],
     'cart_items_count': cart.items.count(),
     'subtotal': subtotal,
@@ -293,9 +315,12 @@ def direct_checkout(request, pk):
     
     # Get quantity from POST or default to 1
     quantity = int(request.POST.get('quantity', 1))
+    variant_id = request.POST.get('variant_id')
+    variant = get_object_or_404(ProductVariant, sku=variant_id, product=product)
+
     
     # Validate stock
-    if quantity > product.stock:
+    if quantity > variant.stock:
         messages.error(request, f"Only {product.stock} available in stock")
         return redirect('shop:product_detail', pk=product.pk)
     
@@ -304,10 +329,11 @@ def direct_checkout(request, pk):
     
     # Store direct checkout data in session
     request.session['direct_checkout'] = {
-        'product_id': product.id,
-        'quantity': quantity,
-        'price': price  
-    }
+    'product_id': product.id,
+    'variant_id': variant.sku, 
+    'quantity': quantity
+   }
+
     
     return redirect('accounts:checkout')
 
@@ -406,23 +432,28 @@ def place_order(request, order_id):
 def order_summary(request, order_id):
     order = get_object_or_404(
         Order.objects.select_related('address', 'promo_code')
-                   .prefetch_related('items__product'),
+                     .prefetch_related('items__product', 'items__variant'),
         id=order_id,
         user=request.user
     )
-    
-    subtotal = sum(item.price * item.quantity for item in order.items.all())
-    discount = (Decimal(order.promo_code.discount_percentage) / Decimal('100')) * subtotal if order.promo_code else Decimal('0')
+
+    items = order.items.all()
+    subtotal = sum(item.price * item.quantity for item in items)
+    discount = Decimal('0.00')
+
+    if order.promo_code:
+        discount = (Decimal(order.promo_code.discount_percentage) / Decimal('100')) * subtotal
+
     total = order.total_price
-    
-    context = {
+
+    return render(request, 'accounts/order_summary.html', {
         'order': order,
+        'items': items,
         'subtotal': subtotal,
         'discount': discount,
-        'total': total,
-        'items': order.items.all()
-    }
-    return render(request, 'accounts/order_summary.html', context)
+        'total': total
+    })
+
 
 
 

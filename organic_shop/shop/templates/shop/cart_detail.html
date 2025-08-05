@@ -4,6 +4,7 @@
 {% block content %}
 <div class="container py-5">
     <h1>Your Shopping Cart</h1>
+
     <table class="table">
         <thead>
             <tr>
@@ -17,22 +18,32 @@
         <tbody>
             {% for item in cart.items.all %}
             <tr>
-                <!-- Product Name -->
-                <td>{{ item.product.name }}</td>
-
-                <!-- Quantity Update Form -->
-               <td>
-                <input type="number"
-                    class="form-control w-50 quantity-input"
-                    min="1"
-                    data-item-id="{{ item.id }}"
-                    value="{{ item.quantity }}">
-            </td>
-
-
-                <!-- Price (Original + Discount) -->
+                <!-- Product Name with Variant Info -->
                 <td>
-                    {% if item.product.discount_price %}
+                    {{ item.get_product.name }}
+                    {% if item.variant %}
+                        <br><small class="text-muted">
+                            {% for value in item.variant.values.all %}
+                                {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </small>
+                    {% endif %}
+                </td>
+
+                <!-- Quantity Input -->
+                <td>
+                    <input type="number"
+                           class="form-control w-50 quantity-input"
+                           min="1"
+                           data-item-id="{{ item.id }}"
+                           value="{{ item.quantity }}">
+                </td>
+
+                <!-- Price Display -->
+                <td>
+                    {% if item.variant %}
+                        ₹{{ item.variant.price }}
+                    {% elif item.product.discount_price %}
                         <span class="text-muted text-decoration-line-through">₹{{ item.product.price }}</span><br>
                         <span class="text-success fw-bold">₹{{ item.product.discount_price }}</span>
                     {% else %}
@@ -50,9 +61,9 @@
 
                 <!-- Remove Button -->
                 <td>
-                    <a href="{% url 'shop:cart_remove' item.product.id %}" class="btn btn-danger">
-                        Remove
-                    </a>
+                    
+                    <a href="{% url 'shop:cart_remove' item.id %}" class="btn btn-danger btn-sm">Remove</a>
+
                 </td>
             </tr>
             {% empty %}
@@ -62,7 +73,7 @@
             {% endfor %}
         </tbody>
 
-        <!-- Cart Total & Savings -->
+        <!-- Cart Totals -->
         <tfoot>
             <tr>
                 <th colspan="3">Total</th>
@@ -76,47 +87,53 @@
             {% endif %}
         </tfoot>
     </table>
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const csrfToken = '{{ csrf_token }}';
 
-        document.querySelectorAll('.quantity-input').forEach(input => {
-            input.addEventListener('change', function () {
-                const itemId = this.dataset.itemId;
-                const newQuantity = this.value;
-
-                fetch("{% url 'shop:update_cart_item_ajax' %}", {
-                    method: "POST",
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken,
-                    },
-                    body: JSON.stringify({
-                        item_id: itemId,
-                        quantity: newQuantity
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Optionally: reload total price dynamically or just refresh page
-                        location.reload(); // or update DOM manually if needed
-                    } else {
-                        alert("Update failed.");
-                    }
-                })
-                .catch(error => {
-                    console.error("Error updating quantity:", error);
-                });
-            });
-        });
-    });
-</script>
-
-
-    <!-- Checkout Button -->
+    <!-- Proceed to Checkout -->
     <div class="text-end">
         <a href="{% url 'accounts:checkout' %}" class="btn btn-primary">Proceed to Checkout</a>
     </div>
 </div>
+
+<!-- AJAX Script for Quantity Update -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const csrfToken = '{{ csrf_token }}';
+
+    document.querySelectorAll('.quantity-input').forEach(input => {
+        input.addEventListener('change', function () {
+            const itemId = this.dataset.itemId;
+            const newQuantity = parseInt(this.value);
+
+            if (newQuantity < 1) {
+                alert("Minimum quantity is 1");
+                return;
+            }
+
+            fetch("{% url 'shop:update_cart_item_ajax' %}", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    item_id: itemId,
+                    quantity: newQuantity
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || "Failed to update cart.");
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("Something went wrong!");
+            });
+        });
+    });
+});
+</script>
 {% endblock %}

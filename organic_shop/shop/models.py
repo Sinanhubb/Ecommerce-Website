@@ -1,9 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.urls import reverse
-
-
-from django.db import models
+from django.core.exceptions import ValidationError
+from django.db import transaction
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
@@ -12,7 +11,6 @@ class Category(models.Model):
 
     class Meta:
         verbose_name_plural = "Categories"
-
 
     def __str__(self):
         return self.name
@@ -35,62 +33,18 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-   
     def get_absolute_url(self):
         return reverse('shop:product_detail', kwargs={'slug': self.slug})
 
-   
     @property
     def get_discount_percentage(self):
         if self.discount_price:
             return int(100 - (self.discount_price / self.price * 100))
         return 0
 
-
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, related_name='images', on_delete=models.CASCADE)
     image = models.ImageField(upload_to='products/')
-
-
-class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    session_key = models.CharField(max_length=40, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    @property
-    def total_price(self):
-        return sum(item.total_price for item in self.items.all())
-
-
-class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
-
-    @property
-    def total_price(self):
-        if self.product.discount_price:
-            return self.product.discount_price * self.quantity
-        return self.product.price * self.quantity
-    
-    @property
-    def savings(self):
-        if self.product.discount_price:
-            return (self.product.price - self.product.discount_price) * self.quantity
-        return 0
-
-
-class Review(models.Model):
-    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='reviews')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)])
-    comment = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.rating}⭐"
-
 
 class VariantOption(models.Model):
     name = models.CharField(max_length=50)
@@ -105,15 +59,103 @@ class VariantValue(models.Model):
     def __str__(self):
         return f"{self.option.name}: {self.value}"
 
-
 class ProductVariant(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     values = models.ManyToManyField(VariantValue)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.IntegerField()
-    sku = models.CharField(max_length=50, unique=True)
+    sku = models.CharField(max_length=50, unique=True, blank=True)
     image = models.ImageField(upload_to='variants/', null=True, blank=True)
+    sold_count = models.IntegerField(default=0)
 
     def __str__(self):
         return f"{self.product.name} - {', '.join(v.value for v in self.values.all())}"
 
+    def generate_sku(self):
+        base = self.product.name[:3].upper()
+        variant_parts = sorted([v.value[:3].upper() for v in self.values.all()])
+        sku_base = f"{base}-{'-'.join(variant_parts)}"
+        
+        counter = 1
+        sku = sku_base
+        
+        while True:
+            try:
+                with transaction.atomic():
+                    if not ProductVariant.objects.filter(sku=sku).exclude(id=self.id).exists():
+                        return sku
+                    sku = f"{sku_base}-{counter}"
+                    counter += 1
+            except Exception:
+                continue
+
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            super().save(*args, **kwargs)
+        if not self.sku:
+            self.sku = self.generate_sku()
+            super().save(update_fields=['sku'])
+        else:
+            super().save(*args, **kwargs)
+
+class Cart(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    session_key = models.CharField(max_length=40, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def total_price(self):
+        return sum(item.total_price for item in self.items.all())
+
+    @property
+    def total_savings(self):
+        return sum(item.savings for item in self.items.all())
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(Cart, related_name='items', on_delete=models.CASCADE)
+    variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.SET_NULL)
+    product = models.ForeignKey(Product, null=True, blank=True, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+
+    def clean(self):
+        if not self.product and not self.variant:
+            raise ValidationError("Cart item must have either a product or variant")
+        if self.product and self.variant:
+            raise ValidationError("Cart item can't have both product and variant")
+
+    @property
+    def total_price(self):
+        if self.variant:
+            return self.variant.price * self.quantity
+        elif self.product.discount_price:
+            return self.product.discount_price * self.quantity
+        return self.product.price * self.quantity
+
+    @property
+    def savings(self):
+        if self.variant:
+            if self.product.discount_price:
+                return (self.product.price - self.product.discount_price) * self.quantity
+            return 0
+        elif self.product.discount_price:
+            return (self.product.price - self.product.discount_price) * self.quantity
+        return 0
+
+    @property
+    def get_product(self):
+        return self.variant.product if self.variant else self.product
+
+    def __str__(self):
+        name = self.variant if self.variant else self.product
+        return f"{name} x {self.quantity}"
+
+class Review(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)])
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.rating}⭐"

@@ -62,7 +62,7 @@
             </div>
 
             <!-- Price Section -->
-            <div class="price-section mb-4 p-3 bg-light rounded">
+            <div class="price-section mb-4 p-3 bg-light rounded" id="price-display">
                 {% if product.discount_price %}
                     <div class="d-flex align-items-center">
                         <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
@@ -74,6 +74,7 @@
                 {% endif %}
             </div>
 
+
             <!-- Product Description -->
             <div class="description mb-4">
                 <h5 class="fw-bold">Description</h5>
@@ -83,7 +84,10 @@
             <!-- Action Buttons -->
             <div class="action-buttons mb-4">
                 <form action="{% url 'shop:cart_add' product.id %}" method="post" class="d-inline-block me-2">
+                    
+
                     {% csrf_token %}
+                    <input type="hidden" name="variant_id" id="cart-variant-id">
                     <div class="input-group mb-2" style="width: 150px;">
                         <button class="btn btn-outline-secondary" type="button" onclick="decrementQuantity()">−</button>
                         {{ cart_product_form.quantity }}
@@ -128,6 +132,7 @@
                 <form id="buyNowForm" action="{% url 'accounts:direct_checkout' product.id %}" method="POST" class="mt-2">
                     {% csrf_token %}
                     <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
+                    <input type="hidden" name="variant_id" id="buy-variant-id">
                     <button type="submit" class="btn btn-success w-100 btn-lg">Buy Now</button>
                 </form>
                 {% endif %}
@@ -345,53 +350,142 @@
     </div>
 </div>
 
-<!-- JavaScript -->
 <script>
-// Change main image when thumbnail is clicked
+const selectedVariants = {};
+const addToCartBtn = document.querySelector('form[action*="cart_add"] button[type="submit"]');
+const buyNowBtn = document.querySelector('#buyNowForm button[type="submit"]');
+const cartVariantInput = document.getElementById('cart-variant-id');
+const buyVariantInput = document.getElementById('buy-variant-id');
+const priceDisplay = document.getElementById('price-display');
+
+function toggleButtons(enabled) {
+    if (addToCartBtn) addToCartBtn.disabled = !enabled;
+    if (buyNowBtn) buyNowBtn.disabled = !enabled;
+}
+
+// Disable buttons initially
+toggleButtons(false);
+
+// Change main image when thumbnail clicked
 function changeMainImage(element) {
     const mainImg = document.getElementById('main-product-image');
     mainImg.src = element.src;
-    
-    // Update active thumbnail
-    document.querySelectorAll('.thumbnail-item').forEach(item => {
-        item.classList.remove('active');
-    });
+    document.querySelectorAll('.thumbnail-item').forEach(item => item.classList.remove('active'));
     element.classList.add('active');
 }
 
-// Set Buy Now quantity before submit
-document.getElementById('buyNowForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const quantityInput = document.querySelector('input[name="quantity"]');
-    const buyNowQuantity = document.getElementById('buyNowQuantity');
-    const stock = {{ product.stock }};
-    
-    let quantity = 1;
-    if (quantityInput) {
-        quantity = parseInt(quantityInput.value) || 1;
-        
-        if (quantity > stock) {
-            alert(`Only ${stock} available in stock!`);
-            return;
-        }
-    }
-    
-    buyNowQuantity.value = quantity;
-    this.submit();
+// Zoom toggle
+document.getElementById('main-product-image').addEventListener('click', function () {
+    this.classList.toggle('zoomed');
+    this.style.transition = 'transform 0.3s ease';
 });
+
+// Toggle share icons
+function toggleShareIcons() {
+    const shareIcons = document.getElementById("share-icons");
+    shareIcons.classList.toggle("d-none");
+}
+
+// Variant selection buttons
+document.querySelectorAll('.variant-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const option = btn.dataset.option;
+        const value = btn.dataset.value;
+
+        document.querySelectorAll(`.variant-btn[data-option="${option}"]`).forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-outline-secondary');
+        });
+
+        btn.classList.add('active', 'btn-primary');
+        btn.classList.remove('btn-outline-secondary');
+
+        selectedVariants[option] = value;
+
+        const totalOptions = document.querySelectorAll('.btn-group[data-option]').length;
+
+        const infoDiv = document.getElementById('variant-info');
+        if (Object.keys(selectedVariants).length === totalOptions) {
+            infoDiv.innerHTML = `<em>Loading variant info...</em>`;
+            fetchVariantData();
+        } else {
+            toggleButtons(false);
+            if (cartVariantInput) cartVariantInput.value = '';
+            if (buyVariantInput) buyVariantInput.value = '';
+            infoDiv.innerHTML = `<em>Select variant options to see price and stock.</em>`;
+        }
+    });
+});
+
+// Fetch variant info via AJAX
+function fetchVariantData() {
+    fetch("{% url 'shop:get_matching_variant' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({
+            product_id: {{ product.id }},
+            selected_values: Object.values(selectedVariants)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const infoDiv = document.getElementById('variant-info');
+
+        if (data.success) {
+            infoDiv.innerHTML = `
+                <strong>Price:</strong> ₹${data.price}<br/>
+                <strong>Stock:</strong> ${data.stock}<br/>
+                <strong>SKU:</strong> ${data.sku}<br/>
+                ${data.image ? `<img src="${data.image}" width="150"/>` : ''}
+            `;
+
+            // Set correct variant ID
+            if (cartVariantInput) cartVariantInput.value = data.sku || '';
+            if (buyVariantInput) buyVariantInput.value = data.sku || '';
+
+            // Update price display
+            if (data.original_price && data.original_price > data.price) {
+                priceDisplay.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="fs-3 fw-bold text-danger me-3">₹${data.price}</span>
+                        <span class="text-decoration-line-through text-muted me-3">₹${data.original_price}</span>
+                        <span class="badge bg-danger">Save ${data.discount_percent}%</span>
+                    </div>
+                `;
+            } else {
+                priceDisplay.innerHTML = `
+                    <span class="fs-3 fw-bold">₹${data.price}</span>
+                `;
+            }
+
+            // Optional: update main image if variant has specific image
+            if (data.image) {
+                const mainImg = document.getElementById('main-product-image');
+                mainImg.src = data.image;
+            }
+
+            toggleButtons(true);
+        } else {
+            infoDiv.innerHTML = `<em>${data.message || "Variant not found."}</em>`;
+            toggleButtons(false);
+            if (cartVariantInput) cartVariantInput.value = '';
+            if (buyVariantInput) buyVariantInput.value = '';
+        }
+    });
+}
 
 // Quantity increment/decrement
 function incrementQuantity() {
     const quantityInput = document.querySelector('input[name="quantity"]');
     const stock = {{ product.stock }};
     let newQuantity = parseInt(quantityInput.value) + 1;
-    
     if (newQuantity > stock) {
         alert(`Only ${stock} available in stock!`);
         return;
     }
-    
     quantityInput.value = newQuantity;
 }
 
@@ -402,131 +496,87 @@ function decrementQuantity() {
     }
 }
 
-// Toggle share buttons
-function toggleShareIcons() {
-    const shareIcons = document.getElementById("share-icons");
-    shareIcons.classList.toggle("d-none");
-}
-const selectedVariants = {};
+// Buy Now submit logic
+document.getElementById('buyNowForm').addEventListener('submit', function (e) {
+    e.preventDefault();
 
-  document.querySelectorAll('.variant-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const option = btn.dataset.option;
-      const value = btn.dataset.value;
+    const quantityInput = document.querySelector('input[name="quantity"]');
+    const buyNowQuantity = document.getElementById('buyNowQuantity');
+    const stock = {{ product.stock }};
 
-      // Deselect others of same option
-      document.querySelectorAll(`.variant-btn[data-option="${option}"]`).forEach(b => {
-        b.classList.remove('active', 'btn-primary');
-        b.classList.add('btn-outline-secondary');
-      });
+    let quantity = 1;
+    if (quantityInput) {
+        quantity = parseInt(quantityInput.value) || 1;
+        if (quantity > stock) {
+            alert(`Only ${stock} available in stock!`);
+            return;
+        }
+    }
 
-      // Mark selected
-      btn.classList.add('active', 'btn-primary');
-      btn.classList.remove('btn-outline-secondary');
-
-      selectedVariants[option] = value;
-
-      // Check if all options selected
-      const totalOptions = document.querySelectorAll('.btn-group[data-option]').length;
-      if (Object.keys(selectedVariants).length === totalOptions) {
-        fetchVariantData();
-      }
-    });
-  });
-
-  function fetchVariantData() {
-    fetch("{% url 'shop:get_matching_variant' %}", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": "{{ csrf_token }}"
-      },
-      body: JSON.stringify({
-        product_id: {{ product.id }},
-        selected_values: Object.values(selectedVariants)
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      const infoDiv = document.getElementById('variant-info');
-      if (data.success) {
-        infoDiv.innerHTML = `
-          <strong>Price:</strong> ₹${data.price}<br/>
-          <strong>Stock:</strong> ${data.stock}<br/>
-          <strong>SKU:</strong> ${data.sku}<br/>
-          ${data.image ? `<img src="${data.image}" width="150"/>` : ''}
-        `;
-      } else {
-        infoDiv.innerHTML = `<em>${data.message || "Variant not found."}</em>`;
-      }
-    });
-  }
-
-// Simple image zoom effect
-document.getElementById('main-product-image').addEventListener('click', function() {
-    this.style.transform = this.style.transform === 'scale(1.5)' ? 'scale(1)' : 'scale(1.5)';
-    this.style.transition = 'transform 0.3s ease';
+    buyNowQuantity.value = quantity;
+    this.submit();
 });
 </script>
 
 <style>
+/* Variant button highlight */
 .variant-btn.active {
-  border-color: #0d6efd;
-  background-color: #0d6efd;
-  color: #fff;
+    border-color: #0d6efd;
+    background-color: #0d6efd;
+    color: #fff;
 }
 
+/* Thumbnail selection */
 .thumbnail-item.active {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
+/* Zoomed image */
+#main-product-image.zoomed {
+    transform: scale(1.5);
+    cursor: zoom-out;
+}
+
+/* Rating stars */
 .rating-input {
     display: flex;
     direction: rtl;
     unicode-bidi: bidi-override;
 }
-
 .rating-input input {
     display: none;
 }
-
 .rating-input label {
     font-size: 2rem;
     color: #ddd;
     cursor: pointer;
 }
-
 .rating-input input:checked ~ label,
 .rating-input label:hover,
 .rating-input label:hover ~ label {
     color: #ffc107;
 }
 
-.rating-input input:checked + label:hover,
-.rating-input input:checked ~ label:hover,
-.rating-input label:hover ~ input:checked ~ label,
-.rating-input input:checked ~ label:hover ~ label {
-    color: #ffc107;
-}
-
+/* Card hover effect */
 .product-card:hover {
     transform: translateY(-5px);
     transition: transform 0.3s ease;
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
+/* Review modal stars */
 .star-label {
     cursor: pointer;
     font-size: 1.5rem;
     color: #ddd;
 }
-
 .star-label:hover,
 .star-label:hover ~ .star-label,
 input[type="radio"]:checked ~ .star-label {
     color: #ffc107;
 }
 </style>
+
 
 {% endblock %}

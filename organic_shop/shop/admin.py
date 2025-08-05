@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, ProductImage, Cart, CartItem,VariantValue,VariantOption,ProductVariant
+from .models import Category, Product, ProductImage, Cart, CartItem, VariantValue, VariantOption, ProductVariant
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -7,9 +7,9 @@ class ProductImageInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'price', 'is_featured','stock', 'sold_count', 'views', 'created_at']
+    list_display = ['name', 'category', 'price', 'is_featured', 'stock', 'sold_count', 'views', 'created_at']
     list_filter = ['is_featured', 'category']
-    list_editable = ['price', 'is_featured','stock']
+    list_editable = ['price', 'is_featured', 'stock']
     prepopulated_fields = {'slug': ('name',)}
     inlines = [ProductImageInline]
 
@@ -27,7 +27,16 @@ class CartAdmin(admin.ModelAdmin):
 class CartItemAdmin(admin.ModelAdmin):
     list_display = ['cart', 'product', 'quantity']
 
+@admin.register(VariantOption)
+class VariantOptionAdmin(admin.ModelAdmin):
+    list_display = ['name']
 
-admin.site.register(ProductVariant)
-admin.site.register(VariantOption)
-admin.site.register(VariantValue)
+@admin.register(VariantValue)
+class VariantValueAdmin(admin.ModelAdmin):
+    list_display = ['option', 'value']
+
+@admin.register(ProductVariant)
+class ProductVariantAdmin(admin.ModelAdmin):
+    list_display = ['product', 'sku', 'price', 'stock']
+    filter_horizontal = ['values']
+    readonly_fields = ['sku']
