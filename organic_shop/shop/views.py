@@ -26,8 +26,13 @@ def index(request):
 
 
 
+from django.db.models import Avg  # make sure this is at the top
+
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
+
+    # 🔧 Step 1: Get default variant with highest stock
+    default_variant = product.get_default_variant()
 
     # Increment view count
     product.views += 1
@@ -44,24 +49,16 @@ def product_detail(request, slug):
     average_rating = reviews.aggregate(Avg('rating'))['rating__avg']
     recently_viewed_ids = request.session.get('recently_viewed', [])
 
-    # Remove current product ID
     if product.id in recently_viewed_ids:
         recently_viewed_ids.remove(product.id)
-
-    # Add current product to front
     recently_viewed_ids.insert(0, product.id)
-
-    # Save updated list to session (limit to last 5)
     request.session['recently_viewed'] = recently_viewed_ids[:5]
 
-    # Get products in same order as IDs
     recently_viewed_queryset = Product.objects.filter(id__in=recently_viewed_ids).exclude(id=product.id)
     recently_viewed = sorted(
         recently_viewed_queryset,
         key=lambda x: recently_viewed_ids.index(x.id)
     )
-
-
 
     # Handle review form
     review_form = None
@@ -76,13 +73,12 @@ def product_detail(request, slug):
     else:
         review_form = ReviewForm()
 
-
+    # Rebuild session tracking
     recent = request.session.get('recently_viewed', [])
     if product.id in recent:
         recent.remove(product.id)
     recent.insert(0, product.id)
     request.session['recently_viewed'] = recent[:5]
-
 
     all_variants = ProductVariant.objects.filter(product=product).prefetch_related('values__option')
     option_map = {}
@@ -94,11 +90,17 @@ def product_detail(request, slug):
                 option_map[option_name] = set()
             option_map[option_name].add(value.value)
 
-    # Convert sets to sorted lists
     for key in option_map:
         option_map[key] = sorted(option_map[key])
 
-
+    
+    variant_data = []
+    for variant in all_variants:
+        values = [v.value for v in variant.values.all()]
+        variant_data.append({
+            'values': [v.value.lower() for v in variant.values.all()],
+            'stock': variant.stock
+        })
 
     context = {
         'product': product,
@@ -110,9 +112,11 @@ def product_detail(request, slug):
         'recently_viewed': recently_viewed,
         'variant_options': option_map,
         'all_variants': all_variants,
-
+        'variant_data_json': json.dumps(variant_data), 
+        'default_variant': all_variants.order_by('-stock').first(),
     }
     return render(request, 'shop/product_detail.html', context)
+
 
 
 def category_detail(request, slug):

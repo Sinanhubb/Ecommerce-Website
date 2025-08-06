@@ -29,6 +29,18 @@ class Product(models.Model):
     views = models.PositiveIntegerField(default=0)  
     available = models.BooleanField(default=True)
     stock = models.PositiveIntegerField(default=0)
+    @property
+    def has_variants(self):
+        
+        return self.variants.exists()
+
+    @property
+    def total_stock(self):
+        
+        if self.has_variants:
+            return sum(variant.stock for variant in self.variants.all())
+        return self.stock
+
 
     def __str__(self):
         return self.name
@@ -41,6 +53,12 @@ class Product(models.Model):
         if self.discount_price:
             return int(100 - (self.discount_price / self.price * 100))
         return 0
+    def get_default_variant(self):
+    
+        if self.has_variants:
+            return self.variants.order_by('-stock').first()
+        return None
+
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, related_name='images', on_delete=models.CASCADE)
@@ -123,6 +141,14 @@ class CartItem(models.Model):
             raise ValidationError("Cart item must have either a product or variant")
         if self.product and self.variant:
             raise ValidationError("Cart item can't have both product and variant")
+        
+    @property
+    def available_stock(self):
+        
+        if self.variant:
+            return self.variant.stock
+        return self.product.stock
+
 
     @property
     def total_price(self):

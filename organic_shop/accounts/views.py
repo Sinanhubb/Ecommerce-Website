@@ -1,15 +1,17 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
-from django.views.decorators.http import require_POST
-from django.http import JsonResponse
-from .models import Wishlist, Address, PromoCode, Order, OrderItem
-from .forms import AddressForm,UserProfileForm
 from shop.models import Cart, CartItem, Product,Review,ProductVariant
-import json
+from django.shortcuts import render, redirect, get_object_or_404
+from .models import Wishlist, Address, PromoCode, Order, OrderItem
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.contrib.auth.forms import UserCreationForm
+from .forms import AddressForm,UserProfileForm
+from django.contrib import messages
+from django.http import JsonResponse
+from django.urls import reverse
 from decimal import Decimal
+import json
+
 
 def user_login(request):
     if request.method == 'POST':
@@ -212,9 +214,16 @@ def checkout(request):
                         quantity=quantity
                     )
 
+                    if quantity > variant.stock:
+                        messages.error(request, "Only {} item(s) left in stock.".format(variant.stock))
+                        return redirect('shop:product_detail', slug=product.slug)
+
                     variant.stock -= quantity
                     variant.sold_count += quantity 
+                    variant.save()
                     product.save()
+
+
 
                     del request.session['direct_checkout']
                     request.session.pop('applied_promo_code', None)
@@ -230,7 +239,7 @@ def checkout(request):
         'price': price,
         'total_price': price * quantity
     }],
-    'cart_items_count': quantity,  # For direct checkout, quantity = total items
+    'cart_items_count': quantity,
     'subtotal': subtotal,
     'discount': discount,
     'total': total,
@@ -282,11 +291,14 @@ def checkout(request):
                             product=cart_item.product,
                             variant=cart_item.variant, 
                             price=cart_item.variant.price if cart_item.variant else cart_item.product.price,
-
                             quantity=cart_item.quantity
                         )
-                        cart_item.variant.stock -= cart_item.quantity 
-                        cart_item.product.save()
+
+                        if cart_item.variant:
+                            cart_item.variant.stock -= cart_item.quantity
+                            cart_item.variant.sold_count += cart_item.quantity
+                            cart_item.variant.save()
+
 
                     cart.delete()
                     request.session.pop('applied_promo_code', None)
@@ -313,21 +325,20 @@ def checkout(request):
 def direct_checkout(request, pk):
     product = get_object_or_404(Product, pk=pk)
     
-    # Get quantity from POST or default to 1
     quantity = int(request.POST.get('quantity', 1))
     variant_id = request.POST.get('variant_id')
     variant = get_object_or_404(ProductVariant, sku=variant_id, product=product)
 
     
-    # Validate stock
+   
     if quantity > variant.stock:
         messages.error(request, f"Only {product.stock} available in stock")
         return redirect('shop:product_detail', pk=product.pk)
     
-    # Calculate price and convert Decimal to float for session storage
+    
     price = float(product.discount_price if product.discount_price else product.price)
     
-    # Store direct checkout data in session
+   
     request.session['direct_checkout'] = {
     'product_id': product.id,
     'variant_id': variant.sku, 

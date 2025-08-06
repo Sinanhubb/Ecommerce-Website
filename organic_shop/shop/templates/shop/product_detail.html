@@ -48,16 +48,6 @@
                     {% else %}
                         <span class="text-muted">No ratings yet</span>
                     {% endif %}
-                    <span class="ms-3 text-success">
-                        <i class="bi bi-check-circle-fill"></i> 
-                        {% if product.stock > 10 %}
-                            In Stock
-                        {% elif product.stock > 0 %}
-                            Only {{ product.stock }} left!
-                        {% else %}
-                            Out of Stock
-                        {% endif %}
-                    </span>
                 </div>
             </div>
 
@@ -175,9 +165,7 @@
             <div class="highlights mb-4">
                 <h5 class="fw-bold">Highlights</h5>
                 <ul class="list-unstyled">
-                    <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Free shipping on orders over ₹500</li>
-                    <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> 7-day easy returns</li>
-                    <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> 1-year warranty</li>
+                    
                 </ul>
             </div>
         </div>
@@ -349,24 +337,24 @@
         </div>
     </div>
 </div>
-
 <script>
 const selectedVariants = {};
+const allVariants = JSON.parse('{{ variant_data_json|escapejs }}');
 const addToCartBtn = document.querySelector('form[action*="cart_add"] button[type="submit"]');
 const buyNowBtn = document.querySelector('#buyNowForm button[type="submit"]');
 const cartVariantInput = document.getElementById('cart-variant-id');
 const buyVariantInput = document.getElementById('buy-variant-id');
 const priceDisplay = document.getElementById('price-display');
+let variantStock = 0;
+
 
 function toggleButtons(enabled) {
     if (addToCartBtn) addToCartBtn.disabled = !enabled;
     if (buyNowBtn) buyNowBtn.disabled = !enabled;
 }
-
-// Disable buttons initially
 toggleButtons(false);
 
-// Change main image when thumbnail clicked
+// 🖼️ Thumbnail image switcher
 function changeMainImage(element) {
     const mainImg = document.getElementById('main-product-image');
     mainImg.src = element.src;
@@ -374,19 +362,19 @@ function changeMainImage(element) {
     element.classList.add('active');
 }
 
-// Zoom toggle
+// 🔍 Zoom toggle
 document.getElementById('main-product-image').addEventListener('click', function () {
     this.classList.toggle('zoomed');
-    this.style.transition = 'transform 0.3s ease';
+    this.style.transition = 'transform 0.20s ease';
 });
 
-// Toggle share icons
+// 🔗 Share toggle
 function toggleShareIcons() {
     const shareIcons = document.getElementById("share-icons");
     shareIcons.classList.toggle("d-none");
 }
 
-// Variant selection buttons
+// ✅ Variant button click handler
 document.querySelectorAll('.variant-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const option = btn.dataset.option;
@@ -403,8 +391,8 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
         selectedVariants[option] = value;
 
         const totalOptions = document.querySelectorAll('.btn-group[data-option]').length;
-
         const infoDiv = document.getElementById('variant-info');
+
         if (Object.keys(selectedVariants).length === totalOptions) {
             infoDiv.innerHTML = `<em>Loading variant info...</em>`;
             fetchVariantData();
@@ -417,7 +405,7 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
     });
 });
 
-// Fetch variant info via AJAX
+// ✅ Fetch variant info from server
 function fetchVariantData() {
     fetch("{% url 'shop:get_matching_variant' %}", {
         method: "POST",
@@ -435,6 +423,8 @@ function fetchVariantData() {
         const infoDiv = document.getElementById('variant-info');
 
         if (data.success) {
+            variantStock = data.stock;
+
             infoDiv.innerHTML = `
                 <strong>Price:</strong> ₹${data.price}<br/>
                 <strong>Stock:</strong> ${data.stock}<br/>
@@ -442,11 +432,9 @@ function fetchVariantData() {
                 ${data.image ? `<img src="${data.image}" width="150"/>` : ''}
             `;
 
-            // Set correct variant ID
             if (cartVariantInput) cartVariantInput.value = data.sku || '';
             if (buyVariantInput) buyVariantInput.value = data.sku || '';
 
-            // Update price display
             if (data.original_price && data.original_price > data.price) {
                 priceDisplay.innerHTML = `
                     <div class="d-flex align-items-center">
@@ -461,13 +449,16 @@ function fetchVariantData() {
                 `;
             }
 
-            // Optional: update main image if variant has specific image
             if (data.image) {
                 const mainImg = document.getElementById('main-product-image');
                 mainImg.src = data.image;
             }
 
             toggleButtons(true);
+
+            
+            updateVariantAvailability();
+
         } else {
             infoDiv.innerHTML = `<em>${data.message || "Variant not found."}</em>`;
             toggleButtons(false);
@@ -477,13 +468,12 @@ function fetchVariantData() {
     });
 }
 
-// Quantity increment/decrement
+// ➕ Quantity control
 function incrementQuantity() {
     const quantityInput = document.querySelector('input[name="quantity"]');
-    const stock = {{ product.stock }};
     let newQuantity = parseInt(quantityInput.value) + 1;
-    if (newQuantity > stock) {
-        alert(`Only ${stock} available in stock!`);
+    if (variantStock && newQuantity > variantStock) {
+        alert(`Only ${variantStock} available in stock!`);
         return;
     }
     quantityInput.value = newQuantity;
@@ -496,19 +486,65 @@ function decrementQuantity() {
     }
 }
 
-// Buy Now submit logic
+function updateVariantAvailability() {
+    const selectedOptions = { ...selectedVariants };
+    const optionGroups = document.querySelectorAll('.btn-group[data-option]');
+
+    optionGroups.forEach(group => {
+        const optionName = group.dataset.option;
+
+        group.querySelectorAll('.variant-btn').forEach(btn => {
+            const btnValue = btn.dataset.value;
+            let possible = false;
+
+            for (const variant of allVariants) {
+                if (variant.stock <= 0) continue;
+
+                const values = variant.values;
+
+                const tempSelection = { ...selectedOptions, [optionName]: btnValue };
+
+                let match = true;
+                for (const [opt, val] of Object.entries(tempSelection)) {
+                    if (!values.some(v => v.toLowerCase() === val.toLowerCase())) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match) {
+                    possible = true;
+                    break;
+                }
+            }
+
+            if (!possible) {
+                btn.disabled = true;
+                btn.classList.add('disabled', 'btn-light');
+                btn.classList.remove('btn-outline-secondary', 'btn-primary');
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('disabled', 'btn-light');
+                if (!btn.classList.contains('active')) {
+                    btn.classList.add('btn-outline-secondary');
+                }
+            }
+        });
+    });
+}
+
+
 document.getElementById('buyNowForm').addEventListener('submit', function (e) {
     e.preventDefault();
 
     const quantityInput = document.querySelector('input[name="quantity"]');
     const buyNowQuantity = document.getElementById('buyNowQuantity');
-    const stock = {{ product.stock }};
 
     let quantity = 1;
     if (quantityInput) {
         quantity = parseInt(quantityInput.value) || 1;
-        if (quantity > stock) {
-            alert(`Only ${stock} available in stock!`);
+        if (variantStock && quantity > variantStock) {
+            alert(`Only ${variantStock} available in stock!`);
             return;
         }
     }
@@ -516,7 +552,23 @@ document.getElementById('buyNowForm').addEventListener('submit', function (e) {
     buyNowQuantity.value = quantity;
     this.submit();
 });
+
+
+const defaultVariantValues = [
+  {% for value in default_variant.values.all %}
+    "{{ value.value }}",
+  {% endfor %}
+];
+
+window.addEventListener("DOMContentLoaded", () => {
+  defaultVariantValues.forEach(val => {
+    const btn = document.querySelector(`.variant-btn[data-value="${val}"]`);
+    if (btn) btn.click();
+  });
+  updateVariantAvailability(); 
+});
 </script>
+
 
 <style>
 /* Variant button highlight */
@@ -575,6 +627,10 @@ document.getElementById('buyNowForm').addEventListener('submit', function (e) {
 .star-label:hover ~ .star-label,
 input[type="radio"]:checked ~ .star-label {
     color: #ffc107;
+}
+.variant-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 </style>
 
