@@ -52,17 +52,25 @@
             </div>
 
             <!-- Price Section -->
-            <div class="price-section mb-4 p-3 bg-light rounded" id="price-display">
-                {% if product.discount_price %}
-                    <div class="d-flex align-items-center">
-                        <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
-                        <span class="text-decoration-line-through text-muted me-3">₹{{ product.price }}</span>
-                        <span class="badge bg-danger fs-6">Save {{ product.get_discount_percentage }}%</span>
-                    </div>
-                {% else %}
-                    <span class="fs-3 fw-bold">₹{{ product.price }}</span>
-                {% endif %}
-            </div>
+           <!-- Replace price section with this variant-aware version -->
+<div class="price-section mb-4 p-3 bg-light rounded" id="price-display">
+    <div id="price-output">
+        {% if product.has_variants %}
+            <em>Select options to see price</em>
+        {% elif product.display_price %}
+            {% if product.display_discount %}
+                <div class="d-flex align-items-center">
+                    <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
+                    <span class="text-decoration-line-through text-muted me-3">₹{{ product.price }}</span>
+                    <span class="badge bg-danger fs-6">Save {{ product.display_discount }}%</span>
+                </div>
+            {% else %}
+                <span class="fs-3 fw-bold">₹{{ product.price }}</span>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
 
 
             <!-- Product Description -->
@@ -407,6 +415,10 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 
 // ✅ Fetch variant info from server
 function fetchVariantData() {
+    // Show loading state
+    const infoDiv = document.getElementById('variant-info');
+    infoDiv.innerHTML = `<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading variant...</div>`;
+    
     fetch("{% url 'shop:get_matching_variant' %}", {
         method: "POST",
         headers: {
@@ -418,53 +430,123 @@ function fetchVariantData() {
             selected_values: Object.values(selectedVariants)
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
     .then(data => {
-        const infoDiv = document.getElementById('variant-info');
-
         if (data.success) {
             variantStock = data.stock;
-
+            
+            // Update variant info display
             infoDiv.innerHTML = `
-                <strong>Price:</strong> ₹${data.price}<br/>
-                <strong>Stock:</strong> ${data.stock}<br/>
-                <strong>SKU:</strong> ${data.sku}<br/>
-                ${data.image ? `<img src="${data.image}" width="150"/>` : ''}
+                <div class="variant-details">
+                    ${data.image ? `<img src="${data.image}" class="variant-image mb-2" width="150">` : ''}
+                    <div class="variant-meta">
+                        <div><strong>SKU:</strong> ${data.sku}</div>
+                        <div><strong>Stock:</strong> ${data.stock} available</div>
+                    </div>
+                </div>
             `;
 
+            // Update hidden form fields
             if (cartVariantInput) cartVariantInput.value = data.sku || '';
             if (buyVariantInput) buyVariantInput.value = data.sku || '';
 
-            if (data.original_price && data.original_price > data.price) {
+            // Calculate discount percentage if applicable
+            const discountPercent = data.discount_price ? 
+                Math.round((1 - (data.discount_price / data.price)) * 100) : 0;
+
+            // Update price display
+            const priceDisplay = document.getElementById('price-display');
+            if (data.discount_price) {
                 priceDisplay.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="fs-3 fw-bold text-danger me-3">₹${data.price}</span>
-                        <span class="text-decoration-line-through text-muted me-3">₹${data.original_price}</span>
-                        <span class="badge bg-danger">Save ${data.discount_percent}%</span>
+                    <div class="price-container">
+                        <div class="d-flex align-items-center flex-wrap">
+                            <span class="current-price fs-3 fw-bold text-danger me-3">
+                                ₹${parseFloat(data.discount_price).toFixed(2)}
+                            </span>
+                            <span class="original-price text-decoration-line-through text-muted me-3">
+                                ₹${parseFloat(data.price).toFixed(2)}
+                            </span>
+                            ${discountPercent > 0 ? `
+                                <span class="discount-badge badge bg-danger">
+                                    Save ${discountPercent}%
+                                </span>
+                            ` : ''}
+                        </div>
                     </div>
                 `;
             } else {
                 priceDisplay.innerHTML = `
-                    <span class="fs-3 fw-bold">₹${data.price}</span>
+                    <div class="price-container">
+                        <span class="current-price fs-3 fw-bold">
+                            ₹${parseFloat(data.price).toFixed(2)}
+                        </span>
+                    </div>
                 `;
             }
 
+            // Update main product image if variant has one
             if (data.image) {
                 const mainImg = document.getElementById('main-product-image');
                 mainImg.src = data.image;
+                
+                // Also update active thumbnail
+                document.querySelectorAll('.thumbnail-item').forEach(item => {
+                    item.classList.remove('active');
+                    if (item.src === data.image) {
+                        item.classList.add('active');
+                    }
+                });
             }
 
-            toggleButtons(true);
-
+            // Enable/disable buttons based on stock
+            toggleButtons(data.stock > 0);
             
+            // Update variant availability
             updateVariantAvailability();
 
         } else {
-            infoDiv.innerHTML = `<em>${data.message || "Variant not found."}</em>`;
+            // Handle no variant found case
+            infoDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    ${data.message || "Selected combination not available"}
+                </div>
+            `;
             toggleButtons(false);
+            
+            // Reset form fields
             if (cartVariantInput) cartVariantInput.value = '';
             if (buyVariantInput) buyVariantInput.value = '';
+            
+            // Reset price display to product price
+            const priceDisplay = document.getElementById('price-display');
+            {% if product.discount_price %}
+                priceDisplay.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
+                        <span class="text-decoration-line-through text-muted me-3">₹{{ product.price }}</span>
+                        <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
+                    </div>
+                `;
+            {% else %}
+                priceDisplay.innerHTML = `
+                    <span class="fs-3 fw-bold">₹{{ product.price }}</span>
+                `;
+            {% endif %}
         }
+    })
+    .catch(error => {
+        console.error('Error fetching variant:', error);
+        infoDiv.innerHTML = `
+            <div class="alert alert-danger">
+                Error loading variant information. Please try again.
+            </div>
+        `;
+        toggleButtons(false);
     });
 }
 

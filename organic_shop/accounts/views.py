@@ -174,8 +174,9 @@ def checkout(request):
 
 
         quantity = direct_data['quantity']
-        price = variant.price
+        price = variant.discount_price if variant.discount_price else variant.price
         subtotal = price * quantity
+
         addresses = Address.objects.filter(user=user)
 
         promo_code_obj, discount, total = get_promo_discount(subtotal)
@@ -290,7 +291,7 @@ def checkout(request):
                             order=order,
                             product=cart_item.product,
                             variant=cart_item.variant, 
-                            price=cart_item.variant.price if cart_item.variant else cart_item.product.price,
+                            price=cart_item.variant.discount_price if cart_item.variant and cart_item.variant.discount_price else (cart_item.variant.price if cart_item.variant else cart_item.product.price),                            
                             quantity=cart_item.quantity
                         )
 
@@ -310,8 +311,12 @@ def checkout(request):
     'products': [{
         'product': item.product,
         'quantity': item.quantity,
-        'price': item.variant.price if item.variant else item.product.price,
-        'total_price': (item.variant.price if item.variant else item.product.price) * item.quantity
+        'price': item.variant.discount_price if item.variant and item.variant.discount_price else (item.variant.price if item.variant else item.product.price),
+        'total_price': (
+    (item.variant.discount_price if item.variant and item.variant.discount_price else (item.variant.price if item.variant else item.product.price))
+    * item.quantity
+)
+
 
     } for item in cart.items.all()],
     'cart_items_count': cart.items.count(),
@@ -324,29 +329,30 @@ def checkout(request):
 @login_required
 def direct_checkout(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    
-    quantity = int(request.POST.get('quantity', 1))
     variant_id = request.POST.get('variant_id')
+    
+    # Validate variant belongs to product
     variant = get_object_or_404(ProductVariant, sku=variant_id, product=product)
-
     
-   
-    if quantity > variant.stock:
-        messages.error(request, f"Only {product.stock} available in stock")
-        return redirect('shop:product_detail', pk=product.pk)
-    
-    
-    price = float(product.discount_price if product.discount_price else product.price)
-    
-   
-    request.session['direct_checkout'] = {
-    'product_id': product.id,
-    'variant_id': variant.sku, 
-    'quantity': quantity
-   }
-
-    
-    return redirect('accounts:checkout')
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+        if quantity <= 0:
+            raise ValueError("Quantity must be at least 1")
+            
+        if quantity > variant.stock:
+            raise ValueError(f"Only {variant.stock} available in stock")
+            
+        request.session['direct_checkout'] = {
+            'product_id': product.id,
+            'variant_id': variant.sku,
+            'quantity': quantity
+        }
+        
+        return redirect('accounts:checkout')
+        
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect('shop:product_detail', slug=product.slug)
 
 
 
@@ -464,9 +470,3 @@ def order_summary(request, order_id):
         'discount': discount,
         'total': total
     })
-
-
-
-
-
-

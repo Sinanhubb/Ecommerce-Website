@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block content %}
-<!-- Enhanced Hero Section -->
+<!--Hero Section -->
 <section class="hero-section" style="background-image: url('{% static 'images/banner-1.jpg' %}'); background-size: cover; background-position: center; min-height: 400px; display: flex; align-items: center;">
     <div class="container text-center text-white">
         <h1 class="display-4 mb-3">Welcome to Our Shop</h1>
@@ -11,7 +11,7 @@
     </div>
 </section>
 
-<!-- Enhanced Categories Section -->
+<!-- Categories Section -->
 <section class="py-5">
     <div class="container">
         <h2 class="section-title text-center mb-5">Our Categories</h2>
@@ -35,7 +35,7 @@
     </div>
 </section>
 
-<!-- Enhanced Product Sections -->
+<!-- Product Sections -->
 {% with sections=featured_products title="Featured Products" bg_class="bg-light" %}
     {% include "shop/partials/product_section.html" %}
 {% endwith %}

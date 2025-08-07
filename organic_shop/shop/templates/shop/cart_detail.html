@@ -3,137 +3,277 @@
 
 {% block content %}
 <div class="container py-5">
-    <h1>Your Shopping Cart</h1>
-
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Product</th>
-                <th>Quantity</th>
-                <th>Price</th>
-                <th>Total</th>
-                <th>Remove</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in cart.items.all %}
-            <tr>
-                <!-- Product Name with Variant Info -->
-                <td>
-                    {{ item.get_product.name }}
-                    {% if item.variant %}
-                        <br><small class="text-muted">
-                            {% for value in item.variant.values.all %}
-                                {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
-                            {% endfor %}
-                        </small>
-                    {% endif %}
-                </td>
-
-                <!-- Quantity Input -->
-                <td>
-                    <input type="number"
-                           class="form-control w-50 quantity-input"
-                           min="1"
-                           data-item-id="{{ item.id }}"
-                           value="{{ item.quantity }}">
-                </td>
-
-                <!-- Price Display -->
-                <td>
-                    {% if item.variant %}
-                        ₹{{ item.variant.price }}
-                    {% elif item.product.discount_price %}
-                        <span class="text-muted text-decoration-line-through">₹{{ item.product.price }}</span><br>
-                        <span class="text-success fw-bold">₹{{ item.product.discount_price }}</span>
-                    {% else %}
-                        ₹{{ item.product.price }}
-                    {% endif %}
-                </td>
-
-                <!-- Total Price + Savings -->
-                <td>
-                    ₹{{ item.total_price }}
-                    {% if item.savings > 0 %}
-                        <br><small class="text-success">You Save ₹{{ item.savings }}</small>
-                    {% endif %}
-                </td>
-
-                <!-- Remove Button -->
-                <td>
-                    
-                    <a href="{% url 'shop:cart_remove' item.id %}" class="btn btn-danger btn-sm">Remove</a>
-
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5">Your cart is empty</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-
-        <!-- Cart Totals -->
-        <tfoot>
-            <tr>
-                <th colspan="3">Total</th>
-                <th colspan="2">₹{{ cart.total_price }}</th>
-            </tr>
-            {% if cart.total_savings > 0 %}
-            <tr>
-                <th colspan="3" class="text-success">Total Savings</th>
-                <th colspan="2" class="text-success">₹{{ cart.total_savings }}</th>
-            </tr>
-            {% endif %}
-        </tfoot>
-    </table>
-
-    <!-- Proceed to Checkout -->
-    <div class="text-end">
-        <a href="{% url 'accounts:checkout' %}" class="btn btn-primary">Proceed to Checkout</a>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Your Shopping Cart</h1>
+        <a href="{% url 'shop:index' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Continue Shopping
+        </a>
     </div>
+
+    {% if cart.items.all %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 40%">Product</th>
+                    <th style="width: 15%">Price</th>
+                    <th style="width: 20%">Quantity</th>
+                    <th style="width: 15%">Total</th>
+                    <th style="width: 10%"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in cart.items.all %}
+                <tr>
+                    <!-- Product Column -->
+                    <td>
+                        <div class="d-flex">
+                            <a href="{{ item.get_product.get_absolute_url }}" class="me-3">
+                                <img src="{% if item.variant and item.variant.image %}{{ item.variant.image.url }}{% else %}{{ item.product.image.url }}{% endif %}" 
+                                     alt="{{ item.get_product.name }}"
+                                     class="img-thumbnail" 
+                                     style="width: 80px; height: 80px; object-fit: cover;">
+                            </a>
+                            <div>
+                                <h6 class="mb-1">
+                                    <a href="{{ item.get_product.get_absolute_url }}" class="text-decoration-none">
+                                        {{ item.get_product.name }}
+                                    </a>
+                                </h6>
+                                {% if item.variant %}
+                                <div class="text-muted small">
+                                    {% for value in item.variant.values.all %}
+                                    <span>{{ value.option.name }}: {{ value.value }}</span>
+                                    {% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% if item.savings > 0 %}
+                                <div class="text-success small">
+                                    <i class="bi bi-tag"></i> You save ₹{{ item.savings }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Price Column -->
+                    <td>
+                        {% if item.variant %}
+                            {% if item.variant.discount_price %}
+                            <div>
+                                <span class="text-decoration-line-through text-muted small">₹{{ item.variant.price }}</span>
+                                <span class="text-danger fw-bold">₹{{ item.variant.discount_price }}</span>
+                            </div>
+                            {% else %}
+                            <span class="fw-bold">₹{{ item.variant.price }}</span>
+                            {% endif %}
+                        {% else %}
+                            {% if item.product.discount_price %}
+                            <div>
+                                <span class="text-decoration-line-through text-muted small">₹{{ item.product.price }}</span>
+                                <span class="text-danger fw-bold">₹{{ item.product.discount_price }}</span>
+                            </div>
+                            {% else %}
+                            <span class="fw-bold">₹{{ item.product.price }}</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+
+                    <!-- Quantity Column -->
+                    <td>
+                        <div class="input-group" style="max-width: 120px;">
+                            <button class="btn btn-outline-secondary decrement" 
+                                    type="button" 
+                                    data-item-id="{{ item.id }}">
+                                <i class="bi bi-dash"></i>
+                            </button>
+                            <input type="number" 
+                                   class="form-control text-center quantity-input" 
+                                   value="{{ item.quantity }}" 
+                                   min="1" 
+                                   max="{% if item.variant %}{{ item.variant.stock }}{% else %}{{ item.product.stock }}{% endif %}"
+                                   data-item-id="{{ item.id }}">
+                            <button class="btn btn-outline-secondary increment" 
+                                    type="button" 
+                                    data-item-id="{{ item.id }}">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            {% if item.variant %}
+                                {{ item.variant.stock }} available
+                            {% else %}
+                                {{ item.product.stock }} available
+                            {% endif %}
+                        </small>
+                    </td>
+
+                    <!-- Total Column -->
+                    <td class="fw-bold">
+                        ₹{{ item.total_price }}
+                    </td>
+
+                    <!-- Remove Column -->
+                    <td class="text-end">
+                        <a href="{% url 'shop:cart_remove' item.id %}" 
+                           class="btn btn-sm btn-outline-danger" 
+                           title="Remove item">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Cart Summary -->
+    <div class="row justify-content-end">
+        <div class="col-md-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Order Summary</h5>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal</span>
+                        <span>₹{{ cart.total_price }}</span>
+                    </div>
+                    {% if cart.total_savings > 0 %}
+                    <div class="d-flex justify-content-between mb-2 text-success">
+                        <span>Discount Savings</span>
+                        <span>-₹{{ cart.total_savings }}</span>
+                    </div>
+                    {% endif %}
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold fs-5">
+                        <span>Total</span>
+                        <span>₹{{ cart.total_price }}</span>
+                    </div>
+                    <a href="{% url 'accounts:checkout' %}" class="btn btn-primary w-100 mt-3">
+                        Proceed to Checkout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5 bg-light rounded">
+        <i class="bi bi-cart-x fs-1 text-muted mb-3"></i>
+        <h3>Your cart is empty</h3>
+        <p class="text-muted">Browse our products and add items to your cart</p>
+        <a href="{% url 'shop:index' %}" class="btn btn-primary">
+            Continue Shopping
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 <!-- AJAX Script for Quantity Update -->
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
+    
+    // Handle quantity changes
+    function updateQuantity(itemId, newQuantity) {
+        if (newQuantity < 1) {
+            alert("Quantity must be at least 1");
+            return false;
+        }
+        
+        return fetch("{% url 'shop:update_cart_item_ajax' %}", {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({
+                item_id: itemId,
+                quantity: newQuantity
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.message || "Failed to update quantity");
+                return false;
+            }
+            return true;
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            alert("Something went wrong. Please try again.");
+            return false;
+        });
+    }
 
+    // Quantity input change handler
     document.querySelectorAll('.quantity-input').forEach(input => {
-        input.addEventListener('change', function () {
+        input.addEventListener('change', function() {
             const itemId = this.dataset.itemId;
             const newQuantity = parseInt(this.value);
-
-            if (newQuantity < 1) {
-                alert("Minimum quantity is 1");
+            const maxStock = parseInt(this.max);
+            
+            if (newQuantity > maxStock) {
+                alert(`Only ${maxStock} available in stock`);
+                this.value = maxStock;
                 return;
             }
+            
+            updateQuantity(itemId, newQuantity).then(success => {
+                if (success) location.reload();
+            });
+        });
+    });
 
-            fetch("{% url 'shop:update_cart_item_ajax' %}", {
-                method: "POST",
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken,
-                },
-                body: JSON.stringify({
-                    item_id: itemId,
-                    quantity: newQuantity
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.message || "Failed to update cart.");
-                }
-            })
-            .catch(error => {
-                console.error("Error:", error);
-                alert("Something went wrong!");
+    // Increment button handler
+    document.querySelectorAll('.increment').forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = this.dataset.itemId;
+            const input = this.parentElement.querySelector('.quantity-input');
+            const currentValue = parseInt(input.value);
+            const maxStock = parseInt(input.max);
+            
+            if (currentValue >= maxStock) {
+                alert(`Only ${maxStock} available in stock`);
+                return;
+            }
+            
+            input.value = currentValue + 1;
+            updateQuantity(itemId, currentValue + 1).then(success => {
+                if (success) location.reload();
+            });
+        });
+    });
+
+    // Decrement button handler
+    document.querySelectorAll('.decrement').forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = this.dataset.itemId;
+            const input = this.parentElement.querySelector('.quantity-input');
+            const currentValue = parseInt(input.value);
+            
+            if (currentValue <= 1) return;
+            
+            input.value = currentValue - 1;
+            updateQuantity(itemId, currentValue - 1).then(success => {
+                if (success) location.reload();
             });
         });
     });
 });
 </script>
+
+<style>
+    .quantity-input {
+        -moz-appearance: textfield;
+    }
+    .quantity-input::-webkit-outer-spin-button,
+    .quantity-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .table td, .table th {
+        vertical-align: middle;
+    }
+</style>
 {% endblock %}

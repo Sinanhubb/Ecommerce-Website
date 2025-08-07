@@ -121,13 +121,19 @@ def product_detail(request, slug):
 
 def category_detail(request, slug):
     category = get_object_or_404(Category, slug=slug)
-    products = category.products.filter(available=True)
-    
+    products = category.products.filter(available=True).prefetch_related('variants')
+
+    for product in products:
+        # Get the variant with the highest stock or first one as default
+        default_variant = product.variants.order_by('-stock').first()
+        product.default_variant = default_variant
+
     context = {
         'category': category,
         'products': products,
     }
     return render(request, 'shop/category_detail.html', context)
+
 
 @login_required(login_url='accounts:login')
 def cart_add(request, product_id):
@@ -154,9 +160,8 @@ def cart_add(request, product_id):
             item.quantity += quantity
             item.save()
 
-        return redirect('shop:cart_detail')  # ✅ Valid form path
+        return redirect('shop:cart_detail')  
 
-    # ❌ If form is invalid, redirect back or return an error page
     return redirect('shop:product_detail', slug=product.slug) 
 
 @login_required
@@ -303,42 +308,46 @@ def get_matching_variant(request):
         product = Product.objects.get(id=product_id)
         variants = ProductVariant.objects.filter(product=product)
 
+        # If no selected values, return highest stock variant
+        if not selected_values:
+            highest_stock_variant = variants.order_by('-stock').first()
+            if highest_stock_variant:
+                base_price = float(highest_stock_variant.price)
+                discount_price = float(highest_stock_variant.discount_price) if highest_stock_variant.discount_price else None
+
+                return JsonResponse({
+                    "success": True,
+                    "sku": highest_stock_variant.sku,
+                    "price": f"{base_price:.2f}",
+                    "discount_price": f"{discount_price:.2f}" if discount_price else None,
+                    "stock": highest_stock_variant.stock,
+                    "image": highest_stock_variant.image.url if highest_stock_variant.image else "",
+                    "variant_id": highest_stock_variant.id,
+                })
+            else:
+                return JsonResponse({"success": False, "message": "No variants available for this product."})
+
+        # Match by selected values
         for variant in variants:
             variant_values = list(variant.values.values_list("value", flat=True))
             if sorted(variant_values) == sorted(selected_values):
-                # Calculate discount if available
-                price = float(variant.price)
-                original_price = float(product.price)
-                discount_percent = 0
-
-                if original_price > price:
-                    discount_percent = int(((original_price - price) / original_price) * 100)
+                base_price = float(variant.price)
+                discount_price = float(variant.discount_price) if variant.discount_price else None
 
                 return JsonResponse({
                     "success": True,
                     "sku": variant.sku,
-                    "price": price,
-                    "original_price": original_price,
-                    "discount_percent": discount_percent,
+                    "price": f"{base_price:.2f}",
+                    "discount_price": f"{discount_price:.2f}" if discount_price else None,
                     "stock": variant.stock,
                     "image": variant.image.url if variant.image else "",
+                    "variant_id": variant.id,
                 })
 
         return JsonResponse({"success": False, "message": "Matching variant not found."})
-    
+
     except Product.DoesNotExist:
         return JsonResponse({"success": False, "message": "Product not found."})
-    
+
     except Exception as e:
         return JsonResponse({"success": False, "message": f"Error: {str(e)}"})
-
-
-
-
-
-
-
-
-
-
-

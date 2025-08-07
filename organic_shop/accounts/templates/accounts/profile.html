@@ -205,7 +205,8 @@
               <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
                 <div class="card h-100 shadow-sm">
                   <div class="position-relative">
-                    <img src="{{ item.product.image.url }}" class="card-img-top" alt="{{ item.product.name }}">
+                    <img src="{{ item.product.image.url }}" class="card-img-top" alt="{{ item.variant.product.name }}
+">
                     <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2" 
                             onclick="removeFromWishlist({{ item.id }})">
                       <i class="fas fa-times"></i>

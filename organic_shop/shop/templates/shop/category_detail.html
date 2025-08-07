@@ -6,19 +6,32 @@
     <h1>{{ category.name }}</h1>
     <div class="row">
         {% for product in products %}
+        {% with variant=product.default_variant %}
         <div class="col-md-3 mb-4">
             <div class="card h-100">
-                <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                {% if variant and variant.image %}
+                    <img src="{{ variant.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                {% elif product.image %}
+                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                {% endif %}
+
                 <div class="card-body">
-                    <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
+                    {% if variant and variant.discount_price %}
+                        <span class="badge bg-danger">Save {{ variant.discount_percentage }}%</span>
+                    {% endif %}
 
                     <h5 class="card-title">{{ product.name }}</h5>
+
                     <div class="price">
-                        {% if product.discount_price %}
-                            <del>₹{{ product.price }}</del>
-                            <span class="text-danger">₹{{ product.discount_price }}</span>
+                        {% if variant %}
+                            {% if variant.discount_price %}
+                                <del>₹{{ variant.price }}</del>
+                                <span class="text-danger">₹{{ variant.discount_price }}</span>
+                            {% else %}
+                                <span>₹{{ variant.price }}</span>
+                            {% endif %}
                         {% else %}
-                            <span>₹{{ product.price }}</span>
+                            <span>Price not available</span>
                         {% endif %}
                     </div>
 
@@ -26,6 +39,7 @@
                 </div>
             </div>
         </div>
+        {% endwith %}
         {% endfor %}
     </div>
 </div>

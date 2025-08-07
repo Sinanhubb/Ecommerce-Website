@@ -58,6 +58,20 @@ class Product(models.Model):
         if self.has_variants:
             return self.variants.order_by('-stock').first()
         return None
+    
+    @property
+    def display_price(self):
+        """Returns the effective price to display (uses variant prices if they exist)"""
+        if self.has_variants:
+            return None  # Variants will handle pricing
+        return self.discount_price or self.price
+
+    @property
+    def display_discount(self):
+        """Returns discount percentage if applicable (only for non-variant products)"""
+        if self.has_variants or not self.discount_price:
+            return None
+        return self.get_discount_percentage
 
 
 class ProductImage(models.Model):
@@ -79,8 +93,10 @@ class VariantValue(models.Model):
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
+
     values = models.ManyToManyField(VariantValue)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     stock = models.IntegerField()
     sku = models.CharField(max_length=50, unique=True, blank=True)
     image = models.ImageField(upload_to='variants/', null=True, blank=True)
@@ -153,20 +169,26 @@ class CartItem(models.Model):
     @property
     def total_price(self):
         if self.variant:
+            if self.variant.discount_price:
+                return self.variant.discount_price * self.quantity
             return self.variant.price * self.quantity
         elif self.product.discount_price:
             return self.product.discount_price * self.quantity
         return self.product.price * self.quantity
 
+
     @property
     def savings(self):
         if self.variant:
-            if self.product.discount_price:
+            if self.variant.discount_price:
+                return (self.variant.price - self.variant.discount_price) * self.quantity
+            elif self.product.discount_price:
                 return (self.product.price - self.product.discount_price) * self.quantity
             return 0
         elif self.product.discount_price:
             return (self.product.price - self.product.discount_price) * self.quantity
         return 0
+
 
     @property
     def get_product(self):
