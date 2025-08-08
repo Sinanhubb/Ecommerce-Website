@@ -26,8 +26,6 @@ def index(request):
 
 
 
-from django.db.models import Avg  # make sure this is at the top
-
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
 

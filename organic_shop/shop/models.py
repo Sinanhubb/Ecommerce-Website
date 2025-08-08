@@ -63,7 +63,7 @@ class Product(models.Model):
     def display_price(self):
         """Returns the effective price to display (uses variant prices if they exist)"""
         if self.has_variants:
-            return None  # Variants will handle pricing
+            return None  
         return self.discount_price or self.price
 
     @property
@@ -131,6 +131,12 @@ class ProductVariant(models.Model):
             super().save(update_fields=['sku'])
         else:
             super().save(*args, **kwargs)
+
+    @property
+    def get_discount_percentage(self):
+        if self.discount_price:
+            return int(100 - (self.discount_price / self.price * 100))
+        return 0
 
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)

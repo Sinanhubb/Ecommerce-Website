@@ -7,32 +7,62 @@
                 <div class="card h-100 border-0 shadow-sm hover-shadow transition position-relative">
                     <!-- Badges -->
                     <div class="position-absolute top-0 start-0 p-2">
-                        {% if product.discount_price %}
-                            <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
-                        {% endif %}
-                        {% if product.stock > 10 %}
-                            <span class="badge bg-success">In Stock</span>
-                        {% elif product.stock > 0 %}
-                            <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
+                        {% if product.has_variants %}
+                            {% with variant=product.get_default_variant %}
+                                {% if variant.discount_price %}
+                                    <span class="badge bg-danger">Save {{ variant.get_discount_percentage }}%</span>
+                                {% endif %}
+                                {% if variant.stock > 10 %}
+                                    <span class="badge bg-success">In Stock</span>
+                                {% elif variant.stock > 0 %}
+                                    <span class="badge bg-warning text-dark">Only {{ variant.stock }} left!</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Out of Stock</span>
+                                {% endif %}
+                            {% endwith %}
                         {% else %}
-                            <span class="badge bg-danger">Out of Stock</span>
+                            {% if product.discount_price %}
+                                <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
+                            {% endif %}
+                            {% if product.stock > 10 %}
+                                <span class="badge bg-success">In Stock</span>
+                            {% elif product.stock > 0 %}
+                                <span class="badge bg-warning text-dark">Only {{ product.stock }} left!</span>
+                            {% else %}
+                                <span class="badge bg-danger">Out of Stock</span>
+                            {% endif %}
                         {% endif %}
                     </div>
                     
                     <!-- Product Image -->
                     <div style="height: 200px; overflow: hidden;">
-                        <img src="{{ product.image.url }}" class="card-img-top h-100 w-100 object-fit-cover" alt="{{ product.name }}" loading="lazy">
+                        {% if product.has_variants and product.get_default_variant.image %}
+                            <img src="{{ product.get_default_variant.image.url }}" class="card-img-top h-100 w-100 object-fit-cover" alt="{{ product.name }}" loading="lazy">
+                        {% else %}
+                            <img src="{{ product.image.url }}" class="card-img-top h-100 w-100 object-fit-cover" alt="{{ product.name }}" loading="lazy">
+                        {% endif %}
                     </div>
                     
                     <!-- Product Details -->
                     <div class="card-body">
                         <h5 class="card-title">{{ product.name }}</h5>
                         <div class="price mb-3">
-                            {% if product.discount_price %}
-                                <del class="text-muted">₹{{ product.price }}</del>
-                                <span class="text-danger fw-bold">₹{{ product.discount_price }}</span>
+                            {% if product.has_variants %}
+                                {% with variant=product.get_default_variant %}
+                                    {% if variant.discount_price %}
+                                        <del class="text-muted">₹{{ variant.price }}</del>
+                                        <span class="text-danger fw-bold">₹{{ variant.discount_price }}</span>
+                                    {% else %}
+                                        <span class="fw-bold">₹{{ variant.price }}</span>
+                                    {% endif %}
+                                {% endwith %}
                             {% else %}
-                                <span class="fw-bold">₹{{ product.price }}</span>
+                                {% if product.discount_price %}
+                                    <del class="text-muted">₹{{ product.price }}</del>
+                                    <span class="text-danger fw-bold">₹{{ product.discount_price }}</span>
+                                {% else %}
+                                    <span class="fw-bold">₹{{ product.price }}</span>
+                                {% endif %}
                             {% endif %}
                         </div>
                         <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-primary w-100 stretched-link">
@@ -45,17 +75,3 @@
         </div>
     </div>
 </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
