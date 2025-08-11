@@ -30,7 +30,7 @@ class ProductAdmin(admin.ModelAdmin):
         This avoids duplicate/confusing stock entries.
         """
         if obj and obj.variants.exists():
-            return self.readonly_fields + ['stock']
+            return self.readonly_fields + ('stock',)
         return self.readonly_fields
 
 
@@ -64,5 +64,6 @@ class VariantValueAdmin(admin.ModelAdmin):
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):
     list_display = ['product', 'sku', 'price', 'stock']
+    list_editable = ['price', 'stock']
     filter_horizontal = ['values']
     readonly_fields = ['sku']

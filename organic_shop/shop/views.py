@@ -17,7 +17,7 @@ def index(request):
 
     context = {
         'categories': categories,
-       'featured_products': featured_products,
+        'featured_products': featured_products,
         'best_selling': best_selling,
         'just_arrived': just_arrived,
         'most_popular': most_popular,
@@ -29,36 +29,47 @@ def index(request):
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
 
-    # 🔧 Step 1: Get default variant with highest stock
-    default_variant = product.get_default_variant()
+    # Default variant for this product (e.g. highest stock)
+    default_variant = product.variants.order_by('-stock').first()
 
-    # Increment view count
+    # Increase product view count
     product.views += 1
     product.save()
 
-    # Cart form
     cart_product_form = CartAddProductForm()
 
-    # Related/similar products
+    # SIMILAR PRODUCTS - get product variants of products in same category excluding this product
     similar_products = Product.objects.filter(category=product.category).exclude(id=product.id)[:4]
 
-    # Fetch reviews
+    # Get default/highest stock variant of similar products
+    similar_variants = []
+    for sp in similar_products:
+        variant = sp.variants.order_by('-stock').first()
+        if variant:
+            similar_variants.append(variant)
+
+    # REVIEWS and average rating
     reviews = product.reviews.all().order_by('-created_at')
     average_rating = reviews.aggregate(Avg('rating'))['rating__avg']
-    recently_viewed_ids = request.session.get('recently_viewed', [])
 
-    if product.id in recently_viewed_ids:
-        recently_viewed_ids.remove(product.id)
-    recently_viewed_ids.insert(0, product.id)
-    request.session['recently_viewed'] = recently_viewed_ids[:5]
+    # RECENTLY VIEWED - store variant IDs instead of product IDs
+    recently_viewed_variant_ids = request.session.get('recently_viewed_variants', [])
 
-    recently_viewed_queryset = Product.objects.filter(id__in=recently_viewed_ids).exclude(id=product.id)
+    # Add current product's default_variant ID to recently viewed variants list
+    if default_variant and default_variant.id in recently_viewed_variant_ids:
+        recently_viewed_variant_ids.remove(default_variant.id)
+    if default_variant:
+        recently_viewed_variant_ids.insert(0, default_variant.id)
+    request.session['recently_viewed_variants'] = recently_viewed_variant_ids[:5]
+
+    # Fetch the recently viewed variants excluding current one
+    recently_viewed_queryset = ProductVariant.objects.filter(id__in=recently_viewed_variant_ids).exclude(id=default_variant.id)
     recently_viewed = sorted(
         recently_viewed_queryset,
-        key=lambda x: recently_viewed_ids.index(x.id)
+        key=lambda x: recently_viewed_variant_ids.index(x.id)
     )
 
-    # Handle review form
+    # Handle review form POST
     review_form = None
     if request.method == 'POST' and request.user.is_authenticated:
         review_form = ReviewForm(request.POST)
@@ -71,30 +82,21 @@ def product_detail(request, slug):
     else:
         review_form = ReviewForm()
 
-    # Rebuild session tracking
-    recent = request.session.get('recently_viewed', [])
-    if product.id in recent:
-        recent.remove(product.id)
-    recent.insert(0, product.id)
-    request.session['recently_viewed'] = recent[:5]
-
+    # Variant options map
     all_variants = ProductVariant.objects.filter(product=product).prefetch_related('values__option')
     option_map = {}
-
     for variant in all_variants:
         for value in variant.values.all():
             option_name = value.option.name
             if option_name not in option_map:
                 option_map[option_name] = set()
             option_map[option_name].add(value.value)
-
     for key in option_map:
         option_map[key] = sorted(option_map[key])
 
-    
+    # Variant data JSON for frontend
     variant_data = []
     for variant in all_variants:
-        values = [v.value for v in variant.values.all()]
         variant_data.append({
             'values': [v.value.lower() for v in variant.values.all()],
             'stock': variant.stock
@@ -103,17 +105,18 @@ def product_detail(request, slug):
     context = {
         'product': product,
         'cart_product_form': cart_product_form,
-        'similar_products': similar_products,
+        'similar_variants': similar_variants,           # pass variant objects here
         'reviews': reviews,
         'average_rating': average_rating,
         'review_form': review_form,
-        'recently_viewed': recently_viewed,
+        'recently_viewed_variants': recently_viewed,   # pass variant objects here
         'variant_options': option_map,
         'all_variants': all_variants,
-        'variant_data_json': json.dumps(variant_data), 
-        'default_variant': all_variants.order_by('-stock').first(),
+        'variant_data_json': json.dumps(variant_data),
+        'default_variant': default_variant,
     }
     return render(request, 'shop/product_detail.html', context)
+
 
 
 
@@ -306,7 +309,6 @@ def get_matching_variant(request):
         product = Product.objects.get(id=product_id)
         variants = ProductVariant.objects.filter(product=product)
 
-        # If no selected values, return highest stock variant
         if not selected_values:
             highest_stock_variant = variants.order_by('-stock').first()
             if highest_stock_variant:

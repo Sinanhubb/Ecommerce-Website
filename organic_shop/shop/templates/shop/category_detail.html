@@ -16,8 +16,8 @@
                 {% endif %}
 
                 <div class="card-body">
-                    {% if variant and variant.discount_price %}
-                        <span class="badge bg-danger">Save {{ variant.discount_percentage }}%</span>
+                    {% if product.display_discount %}
+                        <span class="badge bg-danger">Save {{ product.display_discount }}%</span>
                     {% endif %}
 
                     <h5 class="card-title">{{ product.name }}</h5>

@@ -69,9 +69,12 @@ def profile_view(request):
     addresses = Address.objects.filter(user=user)
     cart_items = cart.items.select_related('product') if cart else []
     total_price = sum(item.total_price for item in cart_items)
-    wishlist = Wishlist.objects.filter(user=user).select_related('product')
+    wishlist = Wishlist.objects.filter(user=user).select_related('product', 'variant')
+
     
     reviews = Review.objects.filter(user=user).select_related('product').order_by('-created_at')
+    orders = Order.objects.filter(user=user).order_by('-created_at')
+
     
     return render(request, 'accounts/profile.html', {
         'cart_items': cart_items,
@@ -79,6 +82,7 @@ def profile_view(request):
         'reviews': reviews, 
         'addresses': addresses,
         'wishlist': wishlist,
+        'orders': orders,
     })
 
 
@@ -99,8 +103,6 @@ def edit_profile_view(request):
     return render(request, 'accounts/edit_profile.html', {'form': form})
 
 
-
-
 @login_required
 def wishlist_view(request):
     wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product')
@@ -113,14 +115,32 @@ def wishlist_view(request):
 @login_required
 def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    variant_sku = request.GET.get('variant') or request.POST.get('variant_id')
+
+   
+    variant_id = request.POST.get("variant_id") 
     variant = None
+    if variant_id:
+        variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
 
-    if variant_sku:
-        variant = get_object_or_404(ProductVariant, sku=variant_sku)
+   
+    wishlist_item, created = Wishlist.objects.get_or_create(
+        user=request.user,
+        product=product,
+        variant=variant
+    )
 
-    Wishlist.objects.get_or_create(user=request.user, product=product, variant=variant)
-    return redirect('shop:product_detail', slug=product.slug)
+    if created:
+        messages.success(request, "Item added to wishlist!")
+    else:
+        messages.info(request, "This item is already in your wishlist.")
+
+    return redirect("accounts:wishlist")  
+
+
+
+
+
+
 @login_required
 def remove_from_wishlist(request, product_id):
     Wishlist.objects.filter(user=request.user, product_id=product_id).delete()

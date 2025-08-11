@@ -137,7 +137,6 @@ class ProductVariant(models.Model):
         if self.discount_price:
             return int(100 - (self.discount_price / self.price * 100))
         return 0
-
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     session_key = models.CharField(max_length=40, null=True, blank=True)

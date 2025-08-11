@@ -2,16 +2,47 @@ from django.db import models
 from django.contrib.auth.models import User
 from shop.models import Product,ProductVariant
 
-# Wishlist
 class Wishlist(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_wishlist')
-    variant = models.ForeignKey(ProductVariant, on_delete=models.SET_NULL, null=True, blank=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='account_wishlist_items')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variant = models.ForeignKey(ProductVariant, null=True, blank=True, on_delete=models.CASCADE)
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'product',)
+        unique_together = ('user', 'product', 'variant')  # Prevent duplicates
 
+    def __str__(self):
+        if self.variant:
+            return f"{self.user.username} - {self.variant}"
+        return f"{self.user.username} - {self.product}"
+
+    @property
+    def display_price(self):
+        """Returns the correct price depending on variant or product"""
+        if self.variant:
+            return self.variant.discount_price or self.variant.price
+        return self.product.discount_price or self.product.price
+
+    @property
+    def original_price(self):
+        """Returns the original price before discount"""
+        if self.variant:
+            return self.variant.price
+        return self.product.price
+
+    @property
+    def has_discount(self):
+        if self.variant:
+            return bool(self.variant.discount_price)
+        return bool(self.product.discount_price)
+
+    @property
+    def discount_percentage(self):
+        if self.variant and self.variant.discount_price:
+            return int(100 - (self.variant.discount_price / self.variant.price * 100))
+        elif self.product and self.product.discount_price:
+            return int(100 - (self.product.discount_price / self.product.price * 100))
+        return 0
 
 
 class Address(models.Model):

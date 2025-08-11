@@ -19,11 +19,12 @@
               </li>
             {% endfor %}
           </ul>
-          <div class="d-flex justify-content-between">
+          <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
             <span><strong>Total:</strong> ₹{{ order.total_price|floatformat:2 }}</span>
-            <a href="{% url 'accounts:order_detail' order.id %}" class="btn btn-outline-primary btn-sm">View Details</a>
-            <a href="{% url 'accounts:order_tracking' order.id %}" class="btn btn-outline-info btn-sm mt-2">Track Order</a>
-
+            <div>
+              <a href="{% url 'accounts:order_detail' order.id %}" class="btn btn-outline-primary btn-sm">View Details</a>
+              <a href="{% url 'accounts:order_tracking' order.id %}" class="btn btn-outline-info btn-sm">Track Order</a>
+            </div>
           </div>
         </div>
       </div>

@@ -213,16 +213,34 @@
                     </button>
                   </div>
                   <div class="card-body">
-                    <h5 class="card-title">{{ item.product.name|truncatechars:30 }}</h5>
-                    <span class="card-text text-success fw-bold">₹{{ item.product.discount_price }}</span>
-                    <span class="text-decoration-line-through text-muted me-3">₹{{ item.product.price }}</span>
-                    <span class="badge bg-danger fs-6">Save {{ item.product.get_discount_percentage }}%</span>
-                    {% if item.product.stock %}
-                      <span class="badge bg-success">In Stock</span>
-                    {% else %}
-                      <span class="badge bg-secondary">Out of Stock</span>
-                    {% endif %}
-                  </div>
+    <h5 class="card-title">{{ item.variant.name|default:item.product.name|truncatechars:30 }}</h5>
+    
+    {% if item.variant.discount_price %}
+        <span class="card-text text-success fw-bold">
+            ₹{{ item.variant.discount_price }}
+        </span>
+    {% else %}
+        <span class="card-text text-success fw-bold">
+            ₹{{ item.variant.price }}
+        </span>
+    {% endif %}
+    
+    {% if item.variant.price and item.variant.discount_price %}
+        <span class="text-decoration-line-through text-muted me-3">
+            ₹{{ item.variant.price }}
+        </span>
+        <span class="badge bg-danger fs-6">
+            Save {{ item.variant.get_discount_percentage }}%
+        </span>
+    {% endif %}
+    
+    {% if item.variant.stock %}
+        <span class="badge bg-success">In Stock</span>
+    {% else %}
+        <span class="badge bg-secondary">Out of Stock</span>
+    {% endif %}
+</div>
+
                   <div class="card-footer bg-transparent d-grid gap-2">
                     <a href="{% url 'shop:product_detail' item.product.slug %}" class="btn btn-sm btn-primary">
                       <i class="fas fa-eye me-1"></i> View
