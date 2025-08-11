@@ -142,9 +142,13 @@ def add_to_wishlist(request, product_id):
 
 
 @login_required
+@require_POST
 def remove_from_wishlist(request, product_id):
     Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
-    return redirect('accounts:wishlist')
+    redirect_to = request.POST.get('next') or 'accounts:wishlist'
+    return redirect(redirect_to)
+
+
 
 
 

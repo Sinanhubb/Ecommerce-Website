@@ -137,21 +137,21 @@
 
                 <!-- Wishlist + Share -->
                 <div class="d-flex gap-2 mt-2">
-    <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1">
-        {% csrf_token %}
-        
-        <!-- Hidden variant ID (replace 'product.variants.first.id' with actual selected variant logic) -->
-        <input type="hidden" name="variant_id" value="{{ product.variants.first.id }}">
-        
-        <button type="submit" class="btn btn-outline-danger btn-lg w-100">
-            <i class="bi bi-heart"></i> Wishlist
-        </button>
-    </form>
+                <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1">
+                    {% csrf_token %}
+                    
+                    <!-- Hidden variant ID (replace 'product.variants.first.id' with actual selected variant logic) -->
+                    <input type="hidden" name="variant_id" value="{{ product.variants.first.id }}">
+                    
+                    <button type="submit" class="btn btn-outline-danger btn-lg w-100">
+                        <i class="bi bi-heart"></i> Wishlist
+                    </button>
+                </form>
 
-    <button class="btn btn-outline-dark btn-lg" onclick="toggleShareIcons()">
-        <i class="bi bi-share"></i>
-    </button>
-</div>
+                <button class="btn btn-outline-dark btn-lg" onclick="toggleShareIcons()">
+                    <i class="bi bi-share"></i>
+                </button>
+            </div>
 
 
 
@@ -369,6 +369,10 @@ const buyVariantInput = document.getElementById('buy-variant-id');
 const priceDisplay = document.getElementById('price-display');
 let variantStock = 0;
 
+// Utility to normalize strings
+function normalize(str) {
+    return str.trim().toLowerCase();
+}
 
 function toggleButtons(enabled) {
     if (addToCartBtn) addToCartBtn.disabled = !enabled;
@@ -376,40 +380,25 @@ function toggleButtons(enabled) {
 }
 toggleButtons(false);
 
-// 🖼️ Thumbnail image switcher
-function changeMainImage(element) {
-    const mainImg = document.getElementById('main-product-image');
-    mainImg.src = element.src;
-    document.querySelectorAll('.thumbnail-item').forEach(item => item.classList.remove('active'));
-    element.classList.add('active');
-}
-
-// 🔍 Zoom toggle
-document.getElementById('main-product-image').addEventListener('click', function () {
-    this.classList.toggle('zoomed');
-    this.style.transition = 'transform 0.20s ease';
-});
-
-// 🔗 Share toggle
-function toggleShareIcons() {
-    const shareIcons = document.getElementById("share-icons");
-    shareIcons.classList.toggle("d-none");
-}
-
-// ✅ Variant button click handler
+// Variant buttons click handler
 document.querySelectorAll('.variant-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        if (btn.disabled) return; // prevent clicking disabled buttons
+
         const option = btn.dataset.option;
         const value = btn.dataset.value;
 
+        // Remove active classes from siblings
         document.querySelectorAll(`.variant-btn[data-option="${option}"]`).forEach(b => {
             b.classList.remove('active', 'btn-primary');
             b.classList.add('btn-outline-secondary');
         });
 
+        // Mark clicked button active
         btn.classList.add('active', 'btn-primary');
         btn.classList.remove('btn-outline-secondary');
 
+        // Update selectedVariants
         selectedVariants[option] = value;
 
         const totalOptions = document.querySelectorAll('.btn-group[data-option]').length;
@@ -417,22 +406,30 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
 
         if (Object.keys(selectedVariants).length === totalOptions) {
             infoDiv.innerHTML = `<em>Loading variant info...</em>`;
-            fetchVariantData();
+            fetchVariantDataDebounced();
         } else {
             toggleButtons(false);
             if (cartVariantInput) cartVariantInput.value = '';
             if (buyVariantInput) buyVariantInput.value = '';
             infoDiv.innerHTML = `<em>Select variant options to see price and stock.</em>`;
         }
+
+        updateVariantAvailability();
     });
 });
 
-// ✅ Fetch variant info from server
+// Debounce fetch calls to avoid flooding server
+let fetchTimeout;
+function fetchVariantDataDebounced() {
+    clearTimeout(fetchTimeout);
+    fetchTimeout = setTimeout(fetchVariantData, 200);
+}
+
+// Fetch variant info from server
 function fetchVariantData() {
-    // Show loading state
     const infoDiv = document.getElementById('variant-info');
     infoDiv.innerHTML = `<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading variant...</div>`;
-    
+
     fetch("{% url 'shop:get_matching_variant' %}", {
         method: "POST",
         headers: {
@@ -445,16 +442,13 @@ function fetchVariantData() {
         })
     })
     .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
+        if (!response.ok) throw new Error('Network response was not ok');
         return response.json();
     })
     .then(data => {
         if (data.success) {
             variantStock = data.stock;
-            
-            // Update variant info display
+
             infoDiv.innerHTML = `
                 <div class="variant-details">
                     ${data.image ? `<img src="${data.image}" class="variant-image mb-2" width="150">` : ''}
@@ -465,79 +459,48 @@ function fetchVariantData() {
                 </div>
             `;
 
-            // Update hidden form fields
             if (cartVariantInput) cartVariantInput.value = data.sku || '';
             if (buyVariantInput) buyVariantInput.value = data.sku || '';
 
-            // Calculate discount percentage if applicable
-            const discountPercent = data.discount_price ? 
-                Math.round((1 - (data.discount_price / data.price)) * 100) : 0;
-
-            // Update price display
-            const priceDisplay = document.getElementById('price-display');
+            const discountPercent = data.discount_price ? Math.round((1 - (data.discount_price / data.price)) * 100) : 0;
             if (data.discount_price) {
                 priceDisplay.innerHTML = `
                     <div class="price-container">
                         <div class="d-flex align-items-center flex-wrap">
-                            <span class="current-price fs-3 fw-bold text-danger me-3">
-                                ₹${parseFloat(data.discount_price).toFixed(2)}
-                            </span>
-                            <span class="original-price text-decoration-line-through text-muted me-3">
-                                ₹${parseFloat(data.price).toFixed(2)}
-                            </span>
-                            ${discountPercent > 0 ? `
-                                <span class="discount-badge badge bg-danger">
-                                    Save ${discountPercent}%
-                                </span>
-                            ` : ''}
+                            <span class="current-price fs-3 fw-bold text-danger me-3">₹${parseFloat(data.discount_price).toFixed(2)}</span>
+                            <span class="original-price text-decoration-line-through text-muted me-3">₹${parseFloat(data.price).toFixed(2)}</span>
+                            ${discountPercent > 0 ? `<span class="discount-badge badge bg-danger">Save ${discountPercent}%</span>` : ''}
                         </div>
                     </div>
                 `;
             } else {
                 priceDisplay.innerHTML = `
                     <div class="price-container">
-                        <span class="current-price fs-3 fw-bold">
-                            ₹${parseFloat(data.price).toFixed(2)}
-                        </span>
+                        <span class="current-price fs-3 fw-bold">₹${parseFloat(data.price).toFixed(2)}</span>
                     </div>
                 `;
             }
 
-            // Update main product image if variant has one
             if (data.image) {
                 const mainImg = document.getElementById('main-product-image');
                 mainImg.src = data.image;
-                
-                // Also update active thumbnail
                 document.querySelectorAll('.thumbnail-item').forEach(item => {
                     item.classList.remove('active');
-                    if (item.src === data.image) {
-                        item.classList.add('active');
-                    }
+                    if (item.src === data.image) item.classList.add('active');
                 });
             }
 
-            // Enable/disable buttons based on stock
             toggleButtons(data.stock > 0);
-            
-            // Update variant availability
-            updateVariantAvailability();
 
+            updateVariantAvailability();
         } else {
-            // Handle no variant found case
             infoDiv.innerHTML = `
-                <div class="alert alert-warning">
-                    ${data.message || "Selected combination not available"}
-                </div>
+                <div class="alert alert-warning">${data.message || "Selected combination not available"}</div>
             `;
             toggleButtons(false);
-            
-            // Reset form fields
             if (cartVariantInput) cartVariantInput.value = '';
             if (buyVariantInput) buyVariantInput.value = '';
-            
-            // Reset price display to product price
-            const priceDisplay = document.getElementById('price-display');
+
             {% if product.discount_price %}
                 priceDisplay.innerHTML = `
                     <div class="d-flex align-items-center">
@@ -547,24 +510,98 @@ function fetchVariantData() {
                     </div>
                 `;
             {% else %}
-                priceDisplay.innerHTML = `
-                    <span class="fs-3 fw-bold">₹{{ product.price }}</span>
-                `;
+                priceDisplay.innerHTML = `<span class="fs-3 fw-bold">₹{{ product.price }}</span>`;
             {% endif %}
         }
     })
     .catch(error => {
         console.error('Error fetching variant:', error);
         infoDiv.innerHTML = `
-            <div class="alert alert-danger">
-                Error loading variant information. Please try again.
-            </div>
+            <div class="alert alert-danger">Error loading variant information. Please try again.</div>
         `;
         toggleButtons(false);
     });
 }
 
-// ➕ Quantity control
+// Update variant availability by enabling/disabling buttons based on current selection
+function updateVariantAvailability() {
+    const selectedOptions = { ...selectedVariants };
+    const optionGroups = document.querySelectorAll('.btn-group[data-option]');
+    const firstOptionGroup = optionGroups[0]; // Assuming first group is Volume
+
+    optionGroups.forEach(group => {
+        const optionName = group.dataset.option;
+
+        if (group === firstOptionGroup) {
+            // For first option group (Volume), never disable any button
+            group.querySelectorAll('.variant-btn').forEach(btn => {
+                btn.disabled = false;
+                btn.classList.remove('disabled', 'btn-light');
+                if (!btn.classList.contains('active')) {
+                    btn.classList.add('btn-outline-secondary');
+                }
+            });
+            return; // skip further disabling logic for first group
+        }
+
+        // For other option groups (Color), disable buttons based on variant availability
+        group.querySelectorAll('.variant-btn').forEach(btn => {
+            const btnValue = btn.dataset.value;
+            let possible = false;
+
+            // Remove current option from selection when testing its buttons
+            const otherSelectedOptions = { ...selectedOptions };
+            delete otherSelectedOptions[optionName];
+
+            // Build temp selection with candidate button value for this option group + other options
+            const tempSelection = { ...otherSelectedOptions, [optionName]: btnValue };
+
+            for (const variant of allVariants) {
+                if (variant.stock <= 0) continue;
+
+                const values = variant.values;
+                let match = true;
+
+                for (const [opt, val] of Object.entries(tempSelection)) {
+                    if (!values.some(v => normalize(v) === normalize(val))) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match) {
+                    possible = true;
+                    break;
+                }
+            }
+
+            if (!possible) {
+                btn.disabled = true;
+                btn.classList.add('disabled', 'btn-light');
+                btn.classList.remove('btn-outline-secondary', 'btn-primary');
+
+                // If this button is selected, deselect it
+                if (selectedVariants[optionName] === btnValue) {
+                    delete selectedVariants[optionName];
+                    const infoDiv = document.getElementById('variant-info');
+                    infoDiv.innerHTML = `<em>Select variant options to see price and stock.</em>`;
+                    toggleButtons(false);
+                    if (cartVariantInput) cartVariantInput.value = '';
+                    if (buyVariantInput) buyVariantInput.value = '';
+                }
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('disabled', 'btn-light');
+                if (!btn.classList.contains('active')) {
+                    btn.classList.add('btn-outline-secondary');
+                }
+            }
+        });
+    });
+}
+
+
+// Quantity increment/decrement controls (unchanged)
 function incrementQuantity() {
     const quantityInput = document.querySelector('input[name="quantity"]');
     let newQuantity = parseInt(quantityInput.value) + 1;
@@ -582,89 +619,30 @@ function decrementQuantity() {
     }
 }
 
-function updateVariantAvailability() {
-    const selectedOptions = { ...selectedVariants };
-    const optionGroups = document.querySelectorAll('.btn-group[data-option]');
+// Safely attach buyNowForm submit handler
+const buyNowForm = document.getElementById('buyNowForm');
+if (buyNowForm) {
+    buyNowForm.addEventListener('submit', function (e) {
+        e.preventDefault();
 
-    // Identify first option group element
-    const firstOptionGroup = optionGroups[0];
+        const quantityInput = document.querySelector('input[name="quantity"]');
+        const buyNowQuantity = document.getElementById('buyNowQuantity');
 
-    optionGroups.forEach(group => {
-        const optionName = group.dataset.option;
-
-        // If this is the first option group, skip disabling logic, just enable all buttons
-        if (group === firstOptionGroup) {
-            group.querySelectorAll('.variant-btn').forEach(btn => {
-                btn.disabled = false;
-                btn.classList.remove('disabled', 'btn-light');
-                if (!btn.classList.contains('active')) {
-                    btn.classList.add('btn-outline-secondary');
-                }
-            });
-            return; // skip rest for first option group
+        let quantity = 1;
+        if (quantityInput) {
+            quantity = parseInt(quantityInput.value) || 1;
+            if (variantStock && quantity > variantStock) {
+                alert(`Only ${variantStock} available in stock!`);
+                return;
+            }
         }
 
-        // For other option groups, run disabling logic
-        group.querySelectorAll('.variant-btn').forEach(btn => {
-            const btnValue = btn.dataset.value;
-            let possible = false;
-
-            for (const variant of allVariants) {
-                if (variant.stock <= 0) continue;
-
-                const values = variant.values;
-                const tempSelection = { ...selectedOptions, [optionName]: btnValue };
-
-                let match = true;
-                for (const [opt, val] of Object.entries(tempSelection)) {
-                    if (!values.some(v => v.toLowerCase() === val.toLowerCase())) {
-                        match = false;
-                        break;
-                    }
-                }
-
-                if (match) {
-                    possible = true;
-                    break;
-                }
-            }
-
-            if (!possible) {
-                btn.disabled = true;
-                btn.classList.add('disabled', 'btn-light');
-                btn.classList.remove('btn-outline-secondary', 'btn-primary');
-            } else {
-                btn.disabled = false;
-                btn.classList.remove('disabled', 'btn-light');
-                if (!btn.classList.contains('active')) {
-                    btn.classList.add('btn-outline-secondary');
-                }
-            }
-        });
+        buyNowQuantity.value = quantity;
+        this.submit();
     });
 }
 
-
-document.getElementById('buyNowForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    const quantityInput = document.querySelector('input[name="quantity"]');
-    const buyNowQuantity = document.getElementById('buyNowQuantity');
-
-    let quantity = 1;
-    if (quantityInput) {
-        quantity = parseInt(quantityInput.value) || 1;
-        if (variantStock && quantity > variantStock) {
-            alert(`Only ${variantStock} available in stock!`);
-            return;
-        }
-    }
-
-    buyNowQuantity.value = quantity;
-    this.submit();
-});
-
-
+// Initialize default variant selections and update UI without triggering multiple fetches
 const defaultVariantValues = [
   {% for value in default_variant.values.all %}
     "{{ value.value }}",
@@ -672,13 +650,30 @@ const defaultVariantValues = [
 ];
 
 window.addEventListener("DOMContentLoaded", () => {
-  defaultVariantValues.forEach(val => {
-    const btn = document.querySelector(`.variant-btn[data-value="${val}"]`);
-    if (btn) btn.click();
-  });
-  updateVariantAvailability(); 
+    // Clear any previous selection classes first (optional)
+    document.querySelectorAll('.variant-btn').forEach(btn => {
+        btn.classList.remove('active', 'btn-primary');
+        btn.classList.add('btn-outline-secondary');
+    });
+
+    // Set selectedVariants and mark buttons active manually
+    defaultVariantValues.forEach(val => {
+        const btn = document.querySelector(`.variant-btn[data-value="${val}"]`);
+        if (btn) {
+            btn.classList.add('active', 'btn-primary');
+            btn.classList.remove('btn-outline-secondary');
+            selectedVariants[btn.dataset.option] = val;
+        }
+    });
+
+    // Fetch variant data once after all defaults are set
+    fetchVariantData();
+
+    // Update variant availability based on defaults
+    updateVariantAvailability();
 });
 </script>
+
 
 
 <style>
