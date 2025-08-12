@@ -1,0 +1,139 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">My Store Admin</a>
+        <div>
+            <a href="{% url 'admin:logout' %}" class="btn btn-outline-light btn-sm">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Page Header -->
+<div class="container mt-4">
+    <h1 class="mb-4 fw-bold">Dashboard Overview</h1>
+
+    <!-- Stats Row -->
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title">Total Products</h5>
+                    <p class="display-6 fw-bold text-primary">{{ products.count }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title">Total Categories</h5>
+                    <p class="display-6 fw-bold text-success">{{ categories.count }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title">Latest Product</h5>
+                    {% if products %}
+                        <p class="fw-bold text-secondary">{{ products.last.name }}</p>
+                    {% else %}
+                        <p class="text-muted">No products yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Latest Products Table -->
+    <div class="card shadow-sm border-0 mt-5">
+        <div class="card-header bg-white fw-bold">Recent Products</div>
+        <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+    {% for product in products|slice:":5" %}
+        <tr class="table-primary">
+            <td>{{ product.name }}</td>
+            <td>{{ product.category.name }}</td>
+            <td>₹{{ product.price }}</td>
+            <td>{{ product.stock }}</td>
+        </tr>
+
+        {% if product.variants.all %}
+            {% for variant in product.variants.all %}
+                <tr class="table-light">
+                    <td>— {{ variant }}</td>
+                    <td>
+                        {% for value in variant.values.all %}
+                            {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>₹{{ variant.price }}</td>
+                    <td>{{ variant.stock }}</td>
+                </tr>
+            {% endfor %}
+        {% endif %}
+    {% empty %}
+        <tr>
+            <td colspan="4" class="text-center text-muted">No products found</td>
+        </tr>
+    {% endfor %}
+</tbody>
+
+            </table>
+            <h3>Products</h3>
+<a href="{% url 'dashboard:product_add' %}" class="btn btn-success">Add Product</a>
+<table>
+    {% for p in products %}
+    <tr>
+        <td>{{ p.name }}</td>
+        <td>
+            <a href="{% url 'dashboard:product_edit' p.id %}">Edit</a>
+            <a href="{% url 'dashboard:product_delete' p.id %}">Delete</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<h3>Variants</h3>
+<a href="{% url 'dashboard:variant_add' %}" class="btn btn-success">Add Variant</a>
+<table>
+    {% for v in variants %}
+    <tr>
+        <td>{{ v.product.name }} - {{ v.sku }}</td>
+        <td>
+            <a href="{% url 'dashboard:variant_edit' v.id %}">Edit</a>
+            <a href="{% url 'dashboard:variant_delete' v.id %}">Delete</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
