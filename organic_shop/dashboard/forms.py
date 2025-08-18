@@ -1,9 +1,6 @@
 from django import forms
 from shop.models import Product, ProductVariant,VariantOption,VariantValue
 
-from django import forms
-from shop.models import Product, ProductVariant, VariantOption, VariantValue
-
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
@@ -66,3 +63,16 @@ class ProductVariantForm(forms.ModelForm):
                         "This variant combination already exists for the selected product."
                     )
         return cleaned_data
+from django import forms
+from accounts.models import Order, OrderItem
+
+class OrderForm(forms.ModelForm):
+    class Meta:
+        model = Order
+        fields = ['status', 'payment_method', 'is_paid', 'promo_code']
+
+
+class OrderItemForm(forms.ModelForm):
+    class Meta:
+        model = OrderItem
+        fields = ['product', 'variant', 'price', 'quantity']

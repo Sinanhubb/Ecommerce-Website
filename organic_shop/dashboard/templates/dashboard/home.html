@@ -19,8 +19,19 @@
     </div>
 </nav>
 
-<!-- Page Header -->
 <div class="container mt-4">
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Page Header -->
     <h1 class="mb-4 fw-bold">Dashboard Overview</h1>
 
     <!-- Stats Row -->
@@ -29,7 +40,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h5 class="card-title">Total Products</h5>
-                    <p class="display-6 fw-bold text-primary">{{ products.count }}</p>
+                    <p class="display-6 fw-bold text-primary">{{ products.paginator.count }}</p>
                 </div>
             </div>
         </div>
@@ -47,19 +58,29 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h5 class="card-title">Latest Product</h5>
-                    {% if products %}
-                        <p class="fw-bold text-secondary">{{ products.last.name }}</p>
-                    {% else %}
-                        <p class="text-muted">No products yet</p>
-                    {% endif %}
+                    {% if latest_product %}
+    <p class="fw-bold text-secondary">{{ latest_product.name }}</p>
+{% else %}
+    <p class="text-muted">No products yet</p>
+{% endif %}
+
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Latest Products Table -->
-    <div class="card shadow-sm border-0 mt-5">
-        <div class="card-header bg-white fw-bold">Recent Products</div>
+    <!-- Search -->
+    <form method="get" class="my-4 d-flex">
+        <input type="text" name="q" class="form-control me-2" placeholder="Search products..." value="{{ request.GET.q }}">
+        <button type="submit" class="btn btn-outline-primary">Search</button>
+    </form>
+
+    <!-- Products Table -->
+    <div class="card shadow-sm border-0 mt-3">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between">
+            <span>Products</span>
+            <a href="{% url 'dashboard:product_add' %}" class="btn btn-success btn-sm">+ Add Product</a>
+        </div>
         <div class="card-body p-0">
             <table class="table table-striped mb-0">
                 <thead>
@@ -68,69 +89,171 @@
                         <th>Category</th>
                         <th>Price</th>
                         <th>Stock</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-    {% for product in products|slice:":5" %}
-        <tr class="table-primary">
-            <td>{{ product.name }}</td>
-            <td>{{ product.category.name }}</td>
-            <td>₹{{ product.price }}</td>
-            <td>{{ product.stock }}</td>
-        </tr>
+                {% for product in products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.category.name }}</td>
+                        <td>₹{{ product.price }}</td>
+                        <td>{{ product.stock }}</td>
+                        <td>
+                            <a href="{% url 'dashboard:product_edit' product.id %}" class="btn btn-warning btn-sm">Edit</a>
+                            <form action="{% url 'dashboard:product_delete' product.id %}" method="post" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
 
-        {% if product.variants.all %}
-            {% for variant in product.variants.all %}
-                <tr class="table-light">
-                    <td>— {{ variant }}</td>
-                    <td>
-                        {% for value in variant.values.all %}
-                            {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
-                        {% endfor %}
-                    </td>
-                    <td>₹{{ variant.price }}</td>
-                    <td>{{ variant.stock }}</td>
-                </tr>
-            {% endfor %}
-        {% endif %}
-    {% empty %}
-        <tr>
-            <td colspan="4" class="text-center text-muted">No products found</td>
-        </tr>
-    {% endfor %}
-</tbody>
-
+                    {% for variant in product.variants.all %}
+                        <tr class="table-light">
+                            <td>— {{ variant }}</td>
+                            <td>
+                                {% for value in variant.values.all %}
+                                    {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>₹{{ variant.price }}</td>
+                            <td>{{ variant.stock }}</td>
+                            <td>
+                                <a href="{% url 'dashboard:variant_edit' variant.id %}" class="btn btn-outline-warning btn-sm">Edit</a>
+                                <form action="{% url 'dashboard:variant_delete' variant.id %}" method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No products found</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
             </table>
-            <h3>Products</h3>
-<a href="{% url 'dashboard:product_add' %}" class="btn btn-success">Add Product</a>
-<table>
-    {% for p in products %}
-    <tr>
-        <td>{{ p.name }}</td>
-        <td>
-            <a href="{% url 'dashboard:product_edit' p.id %}">Edit</a>
-            <a href="{% url 'dashboard:product_delete' p.id %}">Delete</a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-
-<h3>Variants</h3>
-<a href="{% url 'dashboard:variant_add' %}" class="btn btn-success">Add Variant</a>
-<table>
-    {% for v in variants %}
-    <tr>
-        <td>{{ v.product.name }} - {{ v.sku }}</td>
-        <td>
-            <a href="{% url 'dashboard:variant_edit' v.id %}">Edit</a>
-            <a href="{% url 'dashboard:variant_delete' v.id %}">Delete</a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-
         </div>
     </div>
+
+    <!-- Pagination -->
+    <nav class="mt-3">
+        <ul class="pagination">
+            {% if products.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ products.previous_page_number }}">Previous</a></li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">Page {{ products.number }} of {{ products.paginator.num_pages }}</span></li>
+            {% if products.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ products.next_page_number }}">Next</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+
+    <!-- Variants Section -->
+    <div class="card shadow-sm border-0 mt-5">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between">
+            <span>Variants</span>
+            <a href="{% url 'dashboard:variant_add' %}" class="btn btn-success btn-sm">+ Add Variant</a>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for v in variants %}
+                    <tr>
+                        <td>{{ v.product.name }}</td>
+                        <td>{{ v.sku }}</td>
+                        <td>₹{{ v.price }}</td>
+                        <td>{{ v.stock }}</td>
+                        <td>
+                            <a href="{% url 'dashboard:variant_edit' v.id %}" class="btn btn-warning btn-sm">Edit</a>
+                            <form action="{% url 'dashboard:variant_delete' v.id %}" method="post" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No variants found</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Orders Section -->
+<div class="card shadow-sm border-0 mt-5">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between">
+        <span>Orders</span>
+        <a href="{% url 'dashboard:order_list' %}" class="btn btn-primary btn-sm">Manage Orders</a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-striped mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Payment</th>
+                    <th>Total</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for order in orders %}
+                <tr>
+                    <td>#{{ order.id }}</td>
+                    <td>{{ order.user.username }}</td>
+                    <td>
+                        <span class="badge 
+                            {% if order.status == 'pending' %}bg-warning
+                            {% elif order.status == 'shipped' %}bg-info
+                            {% elif order.status == 'delivered' %}bg-success
+                            {% elif order.status == 'cancelled' %}bg-danger
+                            {% endif %}">
+                            {{ order.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {{ order.get_payment_method_display }}
+                        {% if order.is_paid %}
+                            <span class="badge bg-success">Paid</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td>₹{{ order.total_price }}</td>
+                    <td>{{ order.created_at|date:"d M Y" }}</td>
+                    <td>
+                        <a href="{% url 'dashboard:order_detail' order.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{% url 'dashboard:order_edit' order.id %}" class="btn btn-sm btn-outline-warning">Edit</a>
+                        <form action="{% url 'dashboard:order_delete' order.id %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">No orders found</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 
 </div>
 
