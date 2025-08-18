@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from shop.models import Product,ProductVariant
+from django.utils import timezone
 
 class Wishlist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -65,6 +66,9 @@ class PromoCode(models.Model):
     code = models.CharField(max_length=20, unique=True)
     discount_percentage = models.PositiveIntegerField(default=0)
     active = models.BooleanField(default=True)
+    start_date = models.DateTimeField(default=timezone.now)
+    end_date = models.DateTimeField(null=True, blank=True)
+    usage_limit = models.PositiveIntegerField(default=1)  # max number of users
 
     def __str__(self):
         return self.code

@@ -76,3 +76,23 @@ class OrderItemForm(forms.ModelForm):
     class Meta:
         model = OrderItem
         fields = ['product', 'variant', 'price', 'quantity']
+
+
+
+from accounts.models import PromoCode
+
+class PromoCodeForm(forms.ModelForm):
+    class Meta:
+        model = PromoCode
+        fields = ["code", "discount_percentage", "start_date", "end_date", "usage_limit", "active"]
+        widgets = {
+            "start_date": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "end_date": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+from shop.models import Review
+
+class ReviewForm(forms.ModelForm):
+    class Meta:
+        model = Review
+        fields = ['product', 'user', 'rating', 'comment']

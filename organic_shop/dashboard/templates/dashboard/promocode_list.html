@@ -1,0 +1,42 @@
+{% extends "dashboard/base.html" %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-4">Promo Codes</h2>
+
+<a href="{% url 'dashboard:promocode_add' %}" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4 inline-block">
+  Add PromoCode
+</a>
+
+<table class="w-full border-collapse border border-gray-200">
+  <thead>
+    <tr class="bg-gray-100">
+      <th class="border px-4 py-2">Code</th>
+      <th class="border px-4 py-2">Discount %</th>
+      <th class="border px-4 py-2">Start Date</th>
+      <th class="border px-4 py-2">End Date</th>
+      <th class="border px-4 py-2">Usage Limit</th>
+      <th class="border px-4 py-2">Active</th>
+      <th class="border px-4 py-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for promo in promocodes %}
+    <tr>
+      <td class="border px-4 py-2">{{ promo.code }}</td>
+      <td class="border px-4 py-2">{{ promo.discount_percentage }}%</td>
+      <td class="border px-4 py-2">{{ promo.start_date|date:"Y-m-d H:i" }}</td>
+      <td class="border px-4 py-2">{{ promo.end_date|date:"Y-m-d H:i" }}</td>
+      <td class="border px-4 py-2">{{ promo.usage_limit }}</td>
+      <td class="border px-4 py-2">{{ promo.active|yesno:"Active,Inactive" }}</td>
+      <td class="border px-4 py-2">
+        <a href="{% url 'dashboard:promocode_edit' promo.pk %}" class="text-blue-600 hover:underline mr-2">Edit</a>
+        <a href="{% url 'dashboard:promocode_delete' promo.pk %}" class="text-red-600 hover:underline">Delete</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="7" class="border px-4 py-2 text-center">No PromoCodes found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

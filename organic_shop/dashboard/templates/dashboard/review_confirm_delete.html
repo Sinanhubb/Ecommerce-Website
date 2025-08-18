@@ -1,0 +1,7 @@
+<h3>Confirm Delete</h3>
+<p>Are you sure you want to delete the review by {{ review.user.username }} for {{ review.product.name }}?</p>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    <a href="{% url 'dashboard:review_list' %}" class="btn btn-secondary">Cancel</a>
+</form>

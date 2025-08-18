@@ -2,11 +2,14 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
-
-from .forms import ProductForm, ProductVariantForm
+from django.contrib.admin.views.decorators import staff_member_required
+from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm
 from shop.models import Product, ProductVariant, Category
+from accounts.models import Order, OrderItem, PromoCode, Address
 
-
+# -------------------------
+# Dashboard Home
+# -------------------------
 def dashboard_home(request):
     query = request.GET.get("q")
     product_list = Product.objects.all().order_by("-id")
@@ -19,20 +22,28 @@ def dashboard_home(request):
     products = paginator.get_page(page_number)
 
     latest_product = Product.objects.order_by("-id").first()
-
-    # Get latest 5 orders
     orders = Order.objects.all().order_by("-created_at")[:5]
+    promocodes = PromoCode.objects.all().order_by('-id')
+    latest_review = Review.objects.order_by('-created_at').first()
 
     return render(request, "dashboard/home.html", {
         "products": products,
+        "product_list": product_list,
         "categories": Category.objects.all(),
         "variants": ProductVariant.objects.all(),
         "latest_product": latest_product,
         "orders": orders,
+        "promocodes": promocodes,
+        "reviews": Review.objects.all(),  # total reviews
+        "latest_review": latest_review, 
     })
 
-
-# 🔹 Product Add/Edit (combined)
+# -------------------------
+# Product CRUD
+# -------------------------
+def product_list(request):
+    products = Product.objects.all().order_by('-id')
+    return render(request, 'dashboard/product_list.html', {'products': products})
 def product_form(request, pk=None):
     product = get_object_or_404(Product, pk=pk) if pk else None
     if request.method == "POST":
@@ -41,8 +52,7 @@ def product_form(request, pk=None):
             form.save()
             messages.success(request, f"Product {'updated' if pk else 'added'} successfully ✅")
             return redirect("dashboard:dashboard_home")
-        else:
-            messages.error(request, "Please correct the errors below ❌")
+        messages.error(request, "Please correct the errors below ❌")
     else:
         form = ProductForm(instance=product)
 
@@ -51,7 +61,6 @@ def product_form(request, pk=None):
         "title": "Edit Product" if pk else "Add Product",
     })
 
-
 @require_POST
 def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
@@ -59,8 +68,24 @@ def product_delete(request, pk):
     messages.success(request, "Product deleted successfully 🗑️")
     return redirect("dashboard:dashboard_home")
 
+# -------------------------
+# Variant CRUD
+# -------------------------
 
-# 🔹 Variant Add/Edit (combined)
+def variant_list(request):
+    variants = ProductVariant.objects.all().select_related('product').prefetch_related('values')
+    product_id = request.GET.get('product')
+    
+    if product_id:
+        variants = variants.filter(product_id=product_id)
+        product = get_object_or_404(Product, id=product_id)
+    else:
+        product = None
+    
+    return render(request, 'dashboard/variant_list.html', {
+        'variants': variants,
+        'product': product,
+    })
 def variant_form(request, pk=None):
     variant = get_object_or_404(ProductVariant, pk=pk) if pk else None
     if request.method == "POST":
@@ -69,8 +94,7 @@ def variant_form(request, pk=None):
             form.save()
             messages.success(request, f"Variant {'updated' if pk else 'added'} successfully ✅")
             return redirect("dashboard:dashboard_home")
-        else:
-            messages.error(request, "Please correct the errors below ❌")
+        messages.error(request, "Please correct the errors below ❌")
     else:
         form = ProductVariantForm(instance=variant)
 
@@ -79,7 +103,6 @@ def variant_form(request, pk=None):
         "title": "Edit Variant" if pk else "Add Variant",
     })
 
-
 @require_POST
 def variant_delete(request, pk):
     variant = get_object_or_404(ProductVariant, pk=pk)
@@ -87,28 +110,17 @@ def variant_delete(request, pk):
     messages.success(request, "Variant deleted successfully 🗑️")
     return redirect("dashboard:dashboard_home")
 
-
-
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from .forms import OrderForm, OrderItemForm
-from shop.models import Product, ProductVariant
-from accounts.models import Order, OrderItem, PromoCode, Address  # adjust import if in same app
-
-
-# List all orders
+# -------------------------
+# Orders
+# -------------------------
 def order_list(request):
     orders = Order.objects.all().order_by('-created_at')
     return render(request, 'dashboard/orders/order_list.html', {'orders': orders})
 
-
-# View order details
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     return render(request, 'dashboard/orders/order_detail.html', {'order': order})
 
-
-# Update order status/payment
 def order_edit(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     if request.method == "POST":
@@ -121,8 +133,6 @@ def order_edit(request, order_id):
         form = OrderForm(instance=order)
     return render(request, 'dashboard/orders/order_form.html', {"form": form})
 
-
-# Delete an order
 def order_delete(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     if request.method == "POST":
@@ -131,6 +141,77 @@ def order_delete(request, order_id):
         return redirect("dashboard:order_list")
     return render(request, "dashboard/orders/order_confirm_delete.html", {"order": order})
 
+# -------------------------
+# PromoCode (Admin Only)
+# -------------------------
+@staff_member_required
+def promocode_list(request):
+    promocodes = PromoCode.objects.all().order_by("-id")
+    return render(request, "dashboard/promocode_list.html", {"promocodes": promocodes})
+
+@staff_member_required
+def promocode_form(request, pk=None):
+    promocode = get_object_or_404(PromoCode, pk=pk) if pk else None
+    if request.method == "POST":
+        form = PromoCodeForm(request.POST, instance=promocode)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"PromoCode {'updated' if pk else 'added'} successfully ✅")
+            return redirect("dashboard:promocode_list")
+        messages.error(request, "Please correct the errors below ❌")
+    else:
+        form = PromoCodeForm(instance=promocode)
+
+    return render(request, "dashboard/promocode_form.html", {
+        "form": form,
+        "title": "Edit PromoCode" if pk else "Add PromoCode",
+    })
+
+@staff_member_required
+def promocode_delete(request, pk):
+    promocode = get_object_or_404(PromoCode, pk=pk)
+    if request.method == "POST":
+        promocode.delete()
+        messages.success(request, "PromoCode deleted successfully 🗑️")
+        return redirect("dashboard:promocode_list")
+    return render(request, "dashboard/promocode_confirm_delete.html", {"promocode": promocode})
 
 
+from django.contrib.admin.views.decorators import staff_member_required
+from shop.models import Review
+from .forms import ReviewForm
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+
+# List all reviews
+@staff_member_required
+def review_list(request):
+    reviews = Review.objects.all().order_by('-created_at')
+    return render(request, 'dashboard/review_list.html', {'reviews': reviews})
+
+# Add/Edit review
+@staff_member_required
+def review_form(request, pk=None):
+    review = get_object_or_404(Review, pk=pk) if pk else None
+    if request.method == 'POST':
+        form = ReviewForm(request.POST, instance=review)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Review {'updated' if pk else 'added'} successfully ✅")
+            return redirect('dashboard:review_list')
+        else:
+            messages.error(request, "Please correct the errors below ❌")
+    else:
+        form = ReviewForm(instance=review)
+    return render(request, 'dashboard/review_form.html', {'form': form, 'title': 'Edit Review' if pk else 'Add Review'})
+
+# Delete review
+@staff_member_required
+def review_delete(request, pk):
+    review = get_object_or_404(Review, pk=pk)
+    if request.method == 'POST':
+        review.delete()
+        messages.success(request, "Review deleted successfully 🗑️")
+        return redirect('dashboard:review_list')
+    return render(request, 'dashboard/review_confirm_delete.html', {'review': review})
 

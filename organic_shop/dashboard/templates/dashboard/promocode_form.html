@@ -1,0 +1,16 @@
+{% extends "dashboard/base.html" %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-4">{{ title }}</h2>
+
+<form method="POST">
+  {% csrf_token %}
+  <div class="space-y-4">
+    {{ form.as_p }}
+  </div>
+  
+  <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-4">
+    Save
+  </button>
+  <a href="{% url 'dashboard:promocode_list' %}" class="ml-2 text-gray-600 hover:underline">Cancel</a>
+</form>
+{% endblock %}

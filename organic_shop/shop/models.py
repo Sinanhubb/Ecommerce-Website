@@ -58,6 +58,17 @@ class Product(models.Model):
         if self.has_variants:
             return self.variants.order_by('-stock').first()
         return None
+    def get_min_price(self):
+        """Returns the minimum price among all variants"""
+        if self.has_variants:
+            return self.variants.aggregate(models.Min('price'))['price__min']
+        return self.price
+
+    def get_min_discount_price(self):
+        """Returns the minimum discount price among all variants"""
+        if self.has_variants:
+            return self.variants.aggregate(models.Min('discount_price'))['discount_price__min']
+        return self.discount_price
     
     @property
     def display_price(self):
