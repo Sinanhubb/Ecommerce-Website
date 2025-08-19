@@ -24,12 +24,10 @@ def index(request):
     }
     return render(request, 'shop/index.html', context)
 
-
-
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
 
-    # Default variant for this product (e.g. highest stock)
+    
     default_variant = product.variants.order_by('-stock').first()
 
     # Increase product view count
@@ -52,7 +50,7 @@ def product_detail(request, slug):
     reviews = product.reviews.all().order_by('-created_at')
     average_rating = reviews.aggregate(Avg('rating'))['rating__avg']
 
-    # RECENTLY VIEWED - store variant IDs instead of product IDs
+    # RECENTLY VIEWED 
     recently_viewed_variant_ids = request.session.get('recently_viewed_variants', [])
 
     # Add current product's default_variant ID to recently viewed variants list
@@ -62,7 +60,7 @@ def product_detail(request, slug):
         recently_viewed_variant_ids.insert(0, default_variant.id)
     request.session['recently_viewed_variants'] = recently_viewed_variant_ids[:5]
 
-    # Fetch the recently viewed variants excluding current one
+   
     recently_viewed_queryset = ProductVariant.objects.filter(id__in=recently_viewed_variant_ids).exclude(id=default_variant.id)
     recently_viewed = sorted(
         recently_viewed_queryset,
@@ -105,11 +103,11 @@ def product_detail(request, slug):
     context = {
         'product': product,
         'cart_product_form': cart_product_form,
-        'similar_variants': similar_variants,           # pass variant objects here
+        'similar_variants': similar_variants,           
         'reviews': reviews,
         'average_rating': average_rating,
         'review_form': review_form,
-        'recently_viewed_variants': recently_viewed,   # pass variant objects here
+        'recently_viewed_variants': recently_viewed,   
         'variant_options': option_map,
         'all_variants': all_variants,
         'variant_data_json': json.dumps(variant_data),
@@ -117,15 +115,12 @@ def product_detail(request, slug):
     }
     return render(request, 'shop/product_detail.html', context)
 
-
-
-
 def category_detail(request, slug):
     category = get_object_or_404(Category, slug=slug)
     products = category.products.filter(available=True).prefetch_related('variants')
 
     for product in products:
-        # Get the variant with the highest stock or first one as default
+       
         default_variant = product.variants.order_by('-stock').first()
         product.default_variant = default_variant
 
@@ -260,10 +255,6 @@ def update_cart_item_ajax(request):
         return JsonResponse({"success": True})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)})
-    
-
-
-
 
 @login_required
 def buy_now(request, product_id):
@@ -294,8 +285,6 @@ def buy_now(request, product_id):
         item.save()
 
     return redirect('accounts:checkout')
-
-
 
 
 @csrf_exempt

@@ -10,7 +10,7 @@ class Wishlist(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'product', 'variant')  # Prevent duplicates
+        unique_together = ('user', 'product', 'variant')  
 
     def __str__(self):
         if self.variant:

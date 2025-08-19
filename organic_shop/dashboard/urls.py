@@ -12,10 +12,10 @@ urlpatterns = [
     path("product/<int:pk>/edit/", views.product_form, name="product_edit"),
     path("product/<int:pk>/delete/", views.product_delete, name="product_delete"),
 
-    path('variant/', views.product_list, name='variant_list'),
-    path("variant/add/", views.variant_form, name="variant_add"),
-    path("variant/<int:pk>/edit/", views.variant_form, name="variant_edit"),
-    path("variant/<int:pk>/delete/", views.variant_delete, name="variant_delete"),
+   path('variant/', views.variant_list, name='variant_list'),
+path("variant/add/", views.variant_form, name="variant_add"),
+path("variant/<int:pk>/edit/", views.variant_form, name="variant_edit"),
+path("variant/<int:pk>/delete/", views.variant_delete, name="variant_delete"),
 
     path("orders/", views.order_list, name="order_list"),
     path("orders/<int:order_id>/", views.order_detail, name="order_detail"),
@@ -33,4 +33,10 @@ urlpatterns = [
     path('reviews/add/', views.review_form, name='review_add'),
     path('reviews/<int:pk>/edit/', views.review_form, name='review_edit'),
     path('reviews/<int:pk>/delete/', views.review_delete, name='review_delete'),
+
+
+    path("categories/", views.category_list, name="category_list"),
+    path("categories/add/", views.category_form, name="category_add"),
+    path("categories/<int:pk>/edit/", views.category_form, name="category_edit"),
+    path("categories/<int:pk>/delete/", views.category_delete, name="category_delete"),
 ]

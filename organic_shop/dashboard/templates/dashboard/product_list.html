@@ -103,7 +103,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if product.is_active %}
+                            {% if product.available %}
                                 <span class="badge bg-success">Active</span>
                             {% else %}
                                 <span class="badge bg-secondary">Inactive</span>
@@ -111,9 +111,21 @@
                         </td>
                         <td>
                             <div class="d-flex">
-                                <a href="{% url 'dashboard:product_edit' product.id %}" class="btn btn-sm btn-outline-primary me-1" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
+
+                         {% if product.variants.exists %}
+                            <a href="{% url 'dashboard:variant_edit' product.variants.first.id %}" 
+                            class="btn btn-sm btn-outline-primary me-1" 
+                            title="Edit Variant">
+                            <i class="bi bi-pencil"></i>
+                            </a>
+                        {% endif %}
+
+                        <a href="{% url 'dashboard:product_edit' product.id %}" 
+                        class="btn btn-sm btn-outline-primary me-1" 
+                        title="Edit Product">
+                        <i class="bi bi-pencil-square"></i>
+                        </a>
+
                                 <form action="{% url 'dashboard:product_delete' product.id %}" method="post">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

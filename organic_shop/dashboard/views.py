@@ -3,8 +3,8 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.contrib.admin.views.decorators import staff_member_required
-from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm
-from shop.models import Product, ProductVariant, Category
+from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm,ReviewForm
+from shop.models import Product, ProductVariant, Category,Review
 from accounts.models import Order, OrderItem, PromoCode, Address
 
 # -------------------------
@@ -72,6 +72,9 @@ def product_delete(request, pk):
 # Variant CRUD
 # -------------------------
 
+from django.shortcuts import render, get_object_or_404
+from shop.models import Product, ProductVariant
+
 def variant_list(request):
     variants = ProductVariant.objects.all().select_related('product').prefetch_related('values')
     product_id = request.GET.get('product')
@@ -86,6 +89,7 @@ def variant_list(request):
         'variants': variants,
         'product': product,
     })
+
 def variant_form(request, pk=None):
     variant = get_object_or_404(ProductVariant, pk=pk) if pk else None
     if request.method == "POST":
@@ -177,12 +181,6 @@ def promocode_delete(request, pk):
     return render(request, "dashboard/promocode_confirm_delete.html", {"promocode": promocode})
 
 
-from django.contrib.admin.views.decorators import staff_member_required
-from shop.models import Review
-from .forms import ReviewForm
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-
 # List all reviews
 @staff_member_required
 def review_list(request):
@@ -214,4 +212,41 @@ def review_delete(request, pk):
         messages.success(request, "Review deleted successfully 🗑️")
         return redirect('dashboard:review_list')
     return render(request, 'dashboard/review_confirm_delete.html', {'review': review})
+
+
+# dashboard/views.py
+from django.shortcuts import render, get_object_or_404, redirect
+from .forms import ProductForm, ProductVariantForm, CategoryForm
+from shop.models import Product, ProductVariant, Category
+
+# ✅ List Categories
+def category_list(request):
+    categories = Category.objects.all()
+    return render(request, "dashboard/category_list.html", {"categories": categories})
+
+# ✅ Add & Edit Category
+def category_form(request, pk=None):
+    if pk:
+        category = get_object_or_404(Category, pk=pk)
+    else:
+        category = None
+
+    if request.method == "POST":
+        form = CategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            form.save()
+            return redirect("dashboard:category_list")
+    else:
+        form = CategoryForm(instance=category)
+
+    return render(request, "dashboard/category_form.html", {"form": form})
+
+# ✅ Delete Category
+def category_delete(request, pk):
+    category = get_object_or_404(Category, pk=pk)
+    if request.method == "POST":
+        category.delete()
+        return redirect("dashboard:category_list")
+    return render(request, "dashboard/category_confirm_delete.html", {"category": category})
+
 

@@ -11,7 +11,19 @@
                 All Product Variants
             {% endif %}
         </h5>
-        <div>
+        <div class="d-flex">
+            <!-- ✅ Product Filter Dropdown -->
+            <form method="get" action="" class="me-2">
+                <select name="product" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Products --</option>
+                    {% for p in products %}
+                        <option value="{{ p.id }}" {% if product and p.id == product.id %}selected{% endif %}>
+                            {{ p.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+
             <a href="{% url 'dashboard:variant_add' %}" class="btn btn-sm btn-success">
                 <i class="bi bi-plus-lg"></i> Add Variant
             </a>
@@ -22,6 +34,7 @@
             {% endif %}
         </div>
     </div>
+
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">

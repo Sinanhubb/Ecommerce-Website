@@ -29,7 +29,6 @@ class AddressForm(forms.ModelForm):
         return code
 
 
-
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = User

@@ -33,6 +33,9 @@ class Product(models.Model):
     def has_variants(self):
         
         return self.variants.exists()
+    @property
+    def is_active(self):
+        return self.available
 
     @property
     def total_stock(self):
@@ -104,7 +107,6 @@ class VariantValue(models.Model):
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
-
     values = models.ManyToManyField(VariantValue)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

@@ -1,5 +1,5 @@
 from django import forms
-from shop.models import Product, ProductVariant,VariantOption,VariantValue
+from shop.models import Product, ProductVariant,VariantOption,VariantValue,Category
 
 class ProductForm(forms.ModelForm):
     class Meta:
@@ -96,3 +96,9 @@ class ReviewForm(forms.ModelForm):
     class Meta:
         model = Review
         fields = ['product', 'user', 'rating', 'comment']
+
+
+class CategoryForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = '__all__'
