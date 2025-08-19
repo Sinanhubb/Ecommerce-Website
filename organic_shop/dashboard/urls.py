@@ -39,4 +39,6 @@ path("variant/<int:pk>/delete/", views.variant_delete, name="variant_delete"),
     path("categories/add/", views.category_form, name="category_add"),
     path("categories/<int:pk>/edit/", views.category_form, name="category_edit"),
     path("categories/<int:pk>/delete/", views.category_delete, name="category_delete"),
+
+    path('customers/', views.customer_list, name="customer_list"),
 ]

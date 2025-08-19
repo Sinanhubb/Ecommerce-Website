@@ -1,117 +1,168 @@
 {% extends "dashboard/base.html" %}
+{% block title %}Product Variants{% endblock %}
 
 {% block content %}
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0 fw-bold">
+<div class="flex-grow-1 p-4">
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark mb-0">
             <i class="bi bi-boxes me-2"></i>
             {% if product %}
                 Variants for {{ product.name }}
             {% else %}
                 All Product Variants
             {% endif %}
-        </h5>
-        <div class="d-flex">
-            <!-- ✅ Product Filter Dropdown -->
-            <form method="get" action="" class="me-2">
-                <select name="product" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="">-- All Products --</option>
-                    {% for p in products %}
-                        <option value="{{ p.id }}" {% if product and p.id == product.id %}selected{% endif %}>
-                            {{ p.name }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </form>
-
-            <a href="{% url 'dashboard:variant_add' %}" class="btn btn-sm btn-success">
-                <i class="bi bi-plus-lg"></i> Add Variant
-            </a>
-            {% if product %}
-                <a href="{% url 'dashboard:product_edit' product.id %}" class="btn btn-sm btn-primary ms-2">
-                    <i class="bi bi-pencil"></i> Edit Product
-                </a>
-            {% endif %}
+        </h2>
+        <div class="dropdown">
+            <button class="btn btn-success btn-sm dropdown-toggle" type="button" id="variantActions" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-plus-lg"></i> Add
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="variantActions">
+                <li>
+                    <a class="dropdown-item" href="{% url 'dashboard:variant_add' %}">
+                        Add Variant
+                    </a>
+                </li>
+                {% if product %}
+                <li>
+                    <a class="dropdown-item" href="{% url 'dashboard:product_edit' product.id %}">
+                        Edit Product
+                    </a>
+                </li>
+                {% endif %}
+                <li>
+                    <a class="dropdown-item" href="#"><i class="bi bi-download me-2"></i>Export</a>
+                </li>
+            </ul>
         </div>
     </div>
 
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>Product</th>
-                        <th>Variant Options</th>
-                        <th>SKU</th>
-                        <th>Price</th>
-                        <th>Discount Price</th>
-                        <th>Stock</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for variant in variants %}
-                    <tr>
-                        <td>{{ variant.product.name }}</td>
-                        <td>
-                            {% for value in variant.values.all %}
-                                <span class="badge bg-light text-dark">{{ value }}</span>
-                            {% endfor %}
-                        </td>
-                        <td>{{ variant.sku }}</td>
-                        <td>₹{{ variant.price }}</td>
-                        <td>
-                            {% if variant.discount_price %}
-                                ₹{{ variant.discount_price }}
-                                <span class="badge bg-success ms-1">
-                                    {{ variant.get_discount_percentage }}% off
-                                </span>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if variant.stock > 10 %}
-                                <span class="badge bg-success">{{ variant.stock }}</span>
-                            {% elif variant.stock > 0 %}
-                                <span class="badge bg-warning text-dark">{{ variant.stock }}</span>
-                            {% else %}
-                                <span class="badge bg-danger">Out of stock</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="d-flex">
+    <!-- Variants Card -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <div class="d-flex mb-3">
+                <!-- Product Filter -->
+                <form method="get" action="" class="me-2">
+                    <select name="product" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- All Products --</option>
+                        {% for p in products %}
+                            <option value="{{ p.id }}" {% if product and p.id == product.id %}selected{% endif %}>
+                                {{ p.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th>Variant Options</th>
+                            <th>SKU</th>
+                            <th>Price</th>
+                            <th>Discount Price</th>
+                            <th>Stock</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for variant in variants %}
+                        <tr>
+                            <td>{{ variant.product.name }}</td>
+                            <td>
+                                {% for value in variant.values.all %}
+                                    <span class="badge bg-light text-dark">{{ value }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ variant.sku }}</td>
+                            <td>₹{{ variant.price }}</td>
+                            <td>
+                                {% if variant.discount_price %}
+                                    ₹{{ variant.discount_price }}
+                                    <span class="badge bg-success ms-1">{{ variant.get_discount_percentage }}% off</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if variant.stock > 10 %}
+                                    <span class="badge bg-success">{{ variant.stock }}</span>
+                                {% elif variant.stock > 0 %}
+                                    <span class="badge bg-warning text-dark">{{ variant.stock }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Out of stock</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
                                 <a href="{% url 'dashboard:variant_edit' variant.id %}" class="btn btn-sm btn-outline-primary me-1">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <form action="{% url 'dashboard:variant_delete' variant.id %}" method="post">
+                                <form action="{% url 'dashboard:variant_delete' variant.id %}" method="post" class="d-inline">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-outline-danger">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">
-                            No variants found.
-                            {% if product %}
-                                <a href="{% url 'dashboard:variant_add' %}?product={{ product.id }}" class="ms-2 text-primary">
-                                    Add a variant for {{ product.name }}
-                                </a>
-                            {% else %}
-                                <a href="{% url 'dashboard:variant_add' %}" class="ms-2 text-primary">
-                                    Add your first variant
-                                </a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                No variants found.
+                                {% if product %}
+                                    <a href="{% url 'dashboard:variant_add' %}?product={{ product.id }}" class="ms-2 text-primary">
+                                        Add a variant for {{ product.name }}
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'dashboard:variant_add' %}" class="ms-2 text-primary">Add your first variant</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
+
+        <!-- Optional Pagination -->
+        {% if variants.has_other_pages %}
+        <div class="card-footer bg-white">
+            <nav>
+                <ul class="pagination justify-content-center mb-0">
+                    {% if variants.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ variants.previous_page_number }}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                    {% endif %}
+
+                    {% for num in variants.paginator.page_range %}
+                        {% if variants.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% else %}
+                        <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if variants.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ variants.next_page_number }}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

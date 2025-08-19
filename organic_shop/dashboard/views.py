@@ -6,6 +6,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm,ReviewForm
 from shop.models import Product, ProductVariant, Category,Review
 from accounts.models import Order, OrderItem, PromoCode, Address
+from django.contrib.auth.models import User
 
 # -------------------------
 # Dashboard Home
@@ -34,7 +35,7 @@ def dashboard_home(request):
         "latest_product": latest_product,
         "orders": orders,
         "promocodes": promocodes,
-        "reviews": Review.objects.all(),  # total reviews
+        "reviews": Review.objects.all(), 
         "latest_review": latest_review, 
     })
 
@@ -72,8 +73,7 @@ def product_delete(request, pk):
 # Variant CRUD
 # -------------------------
 
-from django.shortcuts import render, get_object_or_404
-from shop.models import Product, ProductVariant
+
 
 def variant_list(request):
     variants = ProductVariant.objects.all().select_related('product').prefetch_related('values')
@@ -219,12 +219,12 @@ from django.shortcuts import render, get_object_or_404, redirect
 from .forms import ProductForm, ProductVariantForm, CategoryForm
 from shop.models import Product, ProductVariant, Category
 
-# ✅ List Categories
+
 def category_list(request):
     categories = Category.objects.all()
     return render(request, "dashboard/category_list.html", {"categories": categories})
 
-# ✅ Add & Edit Category
+
 def category_form(request, pk=None):
     if pk:
         category = get_object_or_404(Category, pk=pk)
@@ -241,12 +241,31 @@ def category_form(request, pk=None):
 
     return render(request, "dashboard/category_form.html", {"form": form})
 
-# ✅ Delete Category
+
 def category_delete(request, pk):
     category = get_object_or_404(Category, pk=pk)
     if request.method == "POST":
         category.delete()
         return redirect("dashboard:category_list")
     return render(request, "dashboard/category_confirm_delete.html", {"category": category})
+
+def customer_list(request):
+    customers = User.objects.all().prefetch_related('order_set', 'addresses')
+
+    customer_data = []
+    for customer in customers:
+        customer_data.append({
+            'id': customer.id,
+            'username': customer.username,
+            'email': customer.email,
+            'date_joined': customer.date_joined,
+            'is_active': customer.is_active,
+            'orders_count': customer.order_set.count(),
+            'addresses_count': customer.addresses.count(),
+        })
+
+    return render(request, 'dashboard/customer_list.html', {
+        'customers': customer_data,
+    })
 
 

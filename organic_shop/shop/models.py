@@ -8,6 +8,7 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
     image = models.ImageField(upload_to='categories/')
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         verbose_name_plural = "Categories"
