@@ -1,9 +1,187 @@
-{% extends 'dashboard/base.html' %}
+{% extends "dashboard/base.html" %}
+{% load static %}
+
 {% block content %}
-<h2>{{ title }}</h2>
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Save</button>
-</form>
+<div class="container my-4">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold">
+        <i class="bi bi-box-seam me-2"></i> {{ title }}
+      </h5>
+      <a href="{% url 'dashboard:dashboard_home' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data" id="product-form">
+        {% csrf_token %}
+
+        <!-- Product Details -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-light">
+            <h6 class="mb-0 text-uppercase text-muted fw-bold">
+              <i class="bi bi-info-circle me-2"></i> Product Details
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              {% for field in form %}
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.help_text %}<small class="text-muted d-block">{{ field.help_text }}</small>{% endif %}
+                  {% for error in field.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+            <div class="mt-3">
+              <img id="product-image-preview" class="img-thumbnail d-none" style="max-height: 140px;" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Variants -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 text-uppercase text-muted fw-bold">
+              <i class="bi bi-boxes me-2"></i> Variants
+            </h6>
+            <button type="button" class="btn btn-sm btn-primary" id="add-variant">
+              <i class="bi bi-plus-lg"></i> Add Variant
+            </button>
+          </div>
+
+          <div class="card-body">
+            {{ formset.management_form }}
+            <div id="variants-container">
+              {% for vform in formset.forms %}
+                <div class="variant-item border rounded p-3 mb-3 bg-light">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-semibold">
+                      <i class="bi bi-tag me-1"></i> Variant {{ forloop.counter }}
+                    </span>
+                    {% if formset.can_delete %}
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-variant">
+                        <i class="bi bi-x-lg"></i> Remove
+                      </button>
+                    {% endif %}
+                  </div>
+
+                  <div class="row g-3">
+                    {% for field in vform %}
+                      {% if field.name != 'DELETE' %}
+                        <div class="col-md-6">
+                          <label class="form-label fw-semibold">{{ field.label }}</label>
+                          {{ field }}
+                          {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
+                          {% for error in field.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+
+                  <div class="mt-3">
+                    <img class="variant-image-preview img-thumbnail d-none" style="max-height: 120px;" />
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex justify-content-end gap-2">
+          <a href="{% url 'dashboard:dashboard_home' %}" class="btn btn-light">
+            Cancel
+          </a>
+          <button class="btn btn-primary">
+            <i class="bi bi-save"></i> Save Product & Variants
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Product image preview ---
+  const input = document.querySelector('input[type="file"][name="image"]');
+  const img = document.getElementById('product-image-preview');
+  if (input) {
+    input.addEventListener('change', () => {
+      const f = input.files && input.files[0];
+      if (!f) return img.classList.add('d-none');
+      img.src = URL.createObjectURL(f);
+      img.classList.remove('d-none');
+    });
+  }
+
+  // --- Variant image preview ---
+  function attachVariantPreview(container) {
+    const imageInputs = container.querySelectorAll('input[type="file"]');
+    imageInputs.forEach(inp => {
+      inp.addEventListener('change', () => {
+        const f = inp.files && inp.files[0];
+        const preview = container.querySelector('.variant-image-preview');
+        if (!preview) return;
+        if (!f) return preview.classList.add('d-none');
+        preview.src = URL.createObjectURL(f);
+        preview.classList.remove('d-none');
+      });
+    });
+  }
+  document.querySelectorAll('.variant-item').forEach(attachVariantPreview);
+
+  // --- Add variant dynamically ---
+  const addBtn = document.getElementById('add-variant');
+  const container = document.getElementById('variants-container');
+  const tpl = document.getElementById('variant-empty-form');
+  const totalInput = document.getElementById('id_variants-TOTAL_FORMS');
+
+  addBtn.addEventListener('click', () => {
+    const idx = parseInt(totalInput.value, 10);
+    const clone = document.createElement('div');
+    clone.innerHTML = tpl.innerHTML.replace(/__prefix__/g, idx);
+    const block = clone.firstElementChild;
+    container.appendChild(block);
+    totalInput.value = idx + 1;
+    attachVariantPreview(block);
+  });
+
+  // --- Remove variant button ---
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.remove-variant')) {
+      e.target.closest('.variant-item').remove();
+    }
+  });
+</script>
+
+<!-- Empty form template -->
+<template id="variant-empty-form">
+  <div class="variant-item border rounded p-3 mb-3 bg-light">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold"><i class="bi bi-tag me-1"></i> New Variant</span>
+      <button type="button" class="btn btn-sm btn-outline-danger remove-variant">
+        <i class="bi bi-x-lg"></i> Remove
+      </button>
+    </div>
+    <div class="row g-3">
+      {% for field in formset.empty_form %}
+        {% if field.name != 'DELETE' %}
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ field.label }}</label>
+            {{ field.as_widget }}
+            {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <img class="variant-image-preview img-thumbnail d-none mt-2" style="max-height: 120px;" />
+  </div>
+</template>
 {% endblock %}

@@ -269,3 +269,44 @@ def customer_list(request):
     })
 
 
+# dashboard/views.py
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+
+from .forms import (
+    ProductForm, ProductVariantFormSet, ProductVariantForm,
+    OrderForm, OrderItemForm, PromoCodeForm, ReviewForm, CategoryForm
+)
+from shop.models import Product
+
+
+def product_form(request, pk=None):
+    """Add/Edit a Product with its Variants"""
+    product = get_object_or_404(Product, pk=pk) if pk else None
+
+    if request.method == "POST":
+        form = ProductForm(request.POST, request.FILES, instance=product)
+        formset = ProductVariantFormSet(request.POST, request.FILES, instance=product, prefix='variants')
+
+        if form.is_valid() and formset.is_valid():
+            product = form.save()  # save product first
+            formset.instance = product
+            formset.save()
+            messages.success(request, f"Product {'updated' if pk else 'added'} successfully ✅")
+            return redirect("dashboard:dashboard_home")
+        else:
+            messages.error(request, "Please correct the errors below ❌")
+
+    else:
+        form = ProductForm(instance=product)
+        formset = ProductVariantFormSet(instance=product, prefix='variants')
+
+    return render(request, "dashboard/product_form.html", {
+        "form": form,
+        "formset": formset,
+        "title": "Edit Product" if pk else "Add Product",
+    })
+
+
+
+

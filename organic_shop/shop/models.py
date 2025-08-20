@@ -3,6 +3,8 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils.text import slugify
+
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
@@ -19,7 +21,7 @@ class Category(models.Model):
 class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True ,blank=True) 
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -30,6 +32,17 @@ class Product(models.Model):
     views = models.PositiveIntegerField(default=0)  
     available = models.BooleanField(default=True)
     stock = models.PositiveIntegerField(default=0)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exclude(id=self.id).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
     @property
     def has_variants(self):
         
@@ -126,25 +139,17 @@ class ProductVariant(models.Model):
         
         counter = 1
         sku = sku_base
-        
-        while True:
-            try:
-                with transaction.atomic():
-                    if not ProductVariant.objects.filter(sku=sku).exclude(id=self.id).exists():
-                        return sku
-                    sku = f"{sku_base}-{counter}"
-                    counter += 1
-            except Exception:
-                continue
+        while ProductVariant.objects.filter(sku=sku).exclude(id=self.id).exists():
+            sku = f"{sku_base}-{counter}"
+            counter += 1
+        return sku
 
     def save(self, *args, **kwargs):
-        if not self.pk:
-            super().save(*args, **kwargs)
+        # Save first to get PK for M2M values
+        super().save(*args, **kwargs)
         if not self.sku:
             self.sku = self.generate_sku()
             super().save(update_fields=['sku'])
-        else:
-            super().save(*args, **kwargs)
 
     @property
     def get_discount_percentage(self):

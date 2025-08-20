@@ -7,13 +7,36 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Avg
 import json
+from accounts.models import Wishlist
 
 def index(request):
-    categories = Category.objects.all()
-    featured_products = Product.objects.filter(available=True, is_featured=True)[:8]
-    best_selling = Product.objects.filter(available=True).order_by('-sold_count')[:10]
-    just_arrived = Product.objects.filter(available=True).order_by('-created_at')[:10]
-    most_popular = Product.objects.filter(available=True).order_by('-views')[:8]
+    # only active categories
+    categories = Category.objects.filter(is_active=True)
+
+    # featured products (only active products in active categories)
+    featured_products = Product.objects.filter(
+        available=True,
+        is_featured=True,
+        category__is_active=True
+    )[:8]
+
+    # best selling products
+    best_selling = Product.objects.filter(
+        available=True,
+        category__is_active=True
+    ).order_by('-sold_count')[:10]
+
+    # just arrived products
+    just_arrived = Product.objects.filter(
+        available=True,
+        category__is_active=True
+    ).order_by('-created_at')[:10]
+
+    # most popular products
+    most_popular = Product.objects.filter(
+        available=True,
+        category__is_active=True
+    ).order_by('-views')[:8]
 
     context = {
         'categories': categories,
@@ -23,6 +46,7 @@ def index(request):
         'most_popular': most_popular,
     }
     return render(request, 'shop/index.html', context)
+
 
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
@@ -115,21 +139,39 @@ def product_detail(request, slug):
     }
     return render(request, 'shop/product_detail.html', context)
 
+
+from accounts.models import Wishlist  # make sure this import exists
+
 def category_detail(request, slug):
     category = get_object_or_404(Category, slug=slug)
     products = category.products.filter(available=True).prefetch_related('variants')
+    category = get_object_or_404(Category, slug=slug, is_active=True)
+
+    sort = request.GET.get('sort')
+    if sort == 'price_asc':
+        products = sorted(products, key=lambda p: (p.variants.order_by('-stock').first().price if p.variants.exists() else 0))
+    elif sort == 'price_desc':
+        products = sorted(products, key=lambda p: (p.variants.order_by('-stock').first().price if p.variants.exists() else 0), reverse=True)
+    elif sort == 'newest':
+        products = products.order_by('-created_at')
+    elif sort == 'rating':
+        products = sorted(products, key=lambda p: p.reviews.aggregate(avg=Avg('rating'))['avg'] or 0, reverse=True)
 
     for product in products:
-       
         default_variant = product.variants.order_by('-stock').first()
         product.default_variant = default_variant
+
+    # ✅ wishlist items for current user
+    wishlist_items = []
+    if request.user.is_authenticated:
+        wishlist_items = Wishlist.objects.filter(user=request.user).values_list('product_id', flat=True)
 
     context = {
         'category': category,
         'products': products,
+        'wishlist_items': wishlist_items,  # pass to template
     }
     return render(request, 'shop/category_detail.html', context)
-
 
 @login_required(login_url='accounts:login')
 def cart_add(request, product_id):
@@ -169,7 +211,10 @@ def cart_remove(request, item_id):
 
 def cart_detail(request):
     cart = get_or_create_cart(request)
+    
     return render(request, 'shop/cart_detail.html', {'cart': cart})
+
+    
 
 def get_or_create_cart(request):
     if request.user.is_authenticated:

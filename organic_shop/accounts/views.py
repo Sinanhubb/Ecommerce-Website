@@ -111,30 +111,27 @@ def wishlist_view(request):
         'wishlist_items': wishlist_items,
         'wishlist_count': wishlist_count
         })
-
 @login_required
 def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-
-   
-    variant_id = request.POST.get("variant_id") 
+    variant_id = request.POST.get("variant_id")
     variant = None
     if variant_id:
         variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
 
-   
-    wishlist_item, created = Wishlist.objects.get_or_create(
-        user=request.user,
-        product=product,
-        variant=variant
-    )
+    wishlist_item = Wishlist.objects.filter(user=request.user, product=product, variant=variant).first()
 
-    if created:
-        messages.success(request, "Item added to wishlist!")
+    if wishlist_item:
+        wishlist_item.delete()
+        added = False
     else:
-        messages.info(request, "This item is already in your wishlist.")
+        Wishlist.objects.create(user=request.user, product=product, variant=variant)
+        added = True
 
-    return redirect("accounts:wishlist")  
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'added': added})
+    return redirect("accounts:wishlist")
+
 
 
 @login_required
