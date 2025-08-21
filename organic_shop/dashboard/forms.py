@@ -152,17 +152,30 @@ class CustomProductVariantFormSet(BaseInlineFormSet):
         if any(self.errors):
             return
 
-        seen = []
-        for form in self.forms:
+        seen = {}  # maps tuple(value_ids) -> {'index': i, 'form': form}
+        for i, form in enumerate(self.forms, start=1):
             if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE"):
                 continue
 
-            values = form.cleaned_data.get("values")
-            if values:
-                value_ids = tuple(sorted(v.pk for v in values))
-                if value_ids in seen:
-                    raise forms.ValidationError("Duplicate variants are not allowed. Please assign each combination only once.")
-                seen.append(value_ids)
+            values = form.cleaned_data.get("values") or []
+            if not values:
+                continue
+
+            value_ids = tuple(sorted(v.pk for v in values))
+            if value_ids in seen:
+                # add per-row (non-field) errors to BOTH rows
+                j = seen[value_ids]['index']
+                form.add_error(
+                    None,
+                    f"This variant duplicates Variant #{j}. Change options or remove it."
+                )
+                seen[value_ids]['form'].add_error(
+                    None,
+                    f"This variant is duplicated by Variant #{i}."
+                )
+            else:
+                seen[value_ids] = {'index': i, 'form': form}
+
 
 
 ProductVariantFormSet = inlineformset_factory(
