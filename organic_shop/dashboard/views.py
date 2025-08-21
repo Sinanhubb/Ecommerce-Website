@@ -232,7 +232,7 @@ def category_form(request, pk=None):
         category = None
 
     if request.method == "POST":
-        form = CategoryForm(request.POST, instance=category)
+        form = CategoryForm(request.POST, request.FILES, instance=category)
         if form.is_valid():
             form.save()
             return redirect("dashboard:category_list")
@@ -306,7 +306,3 @@ def product_form(request, pk=None):
         "formset": formset,
         "title": "Edit Product" if pk else "Add Product",
     })
-
-
-
-

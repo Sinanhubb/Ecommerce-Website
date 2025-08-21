@@ -60,86 +60,122 @@ from shop.models import Product, ProductVariant, VariantValue
 # -----------------------
 # Product Variant Form
 # -----------------------
+# shop/forms.py
+
 class ProductVariantForm(forms.ModelForm):
     class Meta:
         model = ProductVariant
-        fields = ['price', 'discount_price', 'stock', 'image', 'values']
+        fields = ['price', 'discount_price', 'stock', 'image']
         widgets = {
             "price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "discount_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "stock": forms.NumberInput(attrs={"class": "form-control"}),
             "image": forms.ClearableFileInput(attrs={"class": "form-control"}),
-            "values": forms.SelectMultiple(attrs={"class": "form-control"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.option_fields = []
+
+        # Get all available option types (e.g., Color, Size)
+        options = VariantOption.objects.all()
+
+        for option in options:
+            field_name = f'option_{option.pk}'
+            self.fields[field_name] = forms.ModelChoiceField(
+                label=option.name,
+                queryset=VariantValue.objects.filter(option=option),
+                # ---- CHANGE 1: Make the field NOT required ----
+                required=False,
+                # ---- CHANGE 2: Add a user-friendly empty label ----
+                empty_label=f"Select {option.name}...",
+                widget=forms.Select(attrs={'class': 'form-select'})
+            )
+            self.option_fields.append(field_name)
+
+            if self.instance and self.instance.pk:
+                initial_value = self.instance.values.filter(option=option).first()
+                if initial_value:
+                    self.fields[field_name].initial = initial_value
+
+    def get_option_fields(self):
+        """Helper method to pass dynamic fields to the template."""
+        return [self[field] for field in self.option_fields]
+
+    def get_static_fields(self):
+        """Helper for static fields."""
+        static_field_names = ['price', 'discount_price', 'stock', 'image', 'id', 'DELETE']
+        return [self[field] for field in static_field_names if field in self.fields]
 
     def clean(self):
         cleaned_data = super().clean()
-        values = cleaned_data.get('values')
-        product = cleaned_data.get('product')
         price = cleaned_data.get('price')
         discount_price = cleaned_data.get('discount_price')
 
-        # --- Discount price validation ---
-        if discount_price and price:
-            if discount_price >= price:
-                raise forms.ValidationError(
-                    "Discount price must be lower than the regular price."
-                )
+        if discount_price and price and discount_price >= price:
+            self.add_error('discount_price', "Discount price must be lower than the regular price.")
 
-        # --- Ensure only one value per option ---
-        if values:
-            option_ids = [v.option_id for v in values]
-            duplicates = [opt for opt in set(option_ids) if option_ids.count(opt) > 1]
-            if duplicates:
-                option_names = VariantValue.objects.filter(option_id__in=duplicates).values_list(
-                    'option__name', flat=True
-                ).distinct()
-                raise forms.ValidationError(
-                    f"Select only one value per option. Multiple selections found for: {', '.join(option_names)}."
-                )
+        # ---- CHANGE 3: Gather ONLY the selected values ----
+        selected_values = []
+        for field_name in self.option_fields:
+            # Only append if a value was actually selected
+            if cleaned_data.get(field_name):
+                selected_values.append(cleaned_data[field_name])
+        
+        # ---- CHANGE 4: Ensure at least one option is chosen for a variant ----
+        # If the form is not being deleted and has no selected options, it's invalid.
+        if not self.cleaned_data.get("DELETE") and not selected_values:
+            raise forms.ValidationError(
+                "Each variant must have at least one option (e.g., a Color or Size) selected."
+            )
 
-        # --- Prevent duplicate variant against DB ---
-        if product and product.pk and values:
-            existing_variants = ProductVariant.objects.filter(product=product)
-            for variant in existing_variants:
-                if variant.pk == self.instance.pk:
-                    continue
-                if set(variant.values.all()) == set(values):
-                    raise forms.ValidationError(
-                        "This variant combination already exists for the selected product."
-                    )
-
+        # Store them for the formset to use
+        cleaned_data['values'] = selected_values
         return cleaned_data
 
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        if commit:
+            instance.save()
+
+        if 'values' in self.cleaned_data:
+            instance.values.set(self.cleaned_data['values'])
+            if commit:
+                self.save_m2m()
+
+        return instance
 
 # -----------------------
-# Product Variant Formset
+# UPDATED Product Variant Formset
 # -----------------------
-class ProductVariantFormSet(BaseInlineFormSet):
+class CustomProductVariantFormSet(BaseInlineFormSet):
     def clean(self):
         super().clean()
+        if any(self.errors):
+            return
 
         seen = []
         for form in self.forms:
-            if not hasattr(form, "cleaned_data"):
+            if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE"):
                 continue
-            if form.cleaned_data and not form.cleaned_data.get("DELETE"):
-                values = form.cleaned_data.get("values")
-                if values:
-                    # Convert to sorted tuple of IDs (order doesn't matter)
-                    value_ids = tuple(sorted(v.pk for v in values))
-                    if value_ids in seen:
-                        raise forms.ValidationError(
-                            "Duplicate variant combination detected within this product."
-                        )
-                    seen.append(value_ids)
+
+            # 'values' is now populated by the form's clean method
+            values = form.cleaned_data.get("values")
+            if values:
+                value_ids = tuple(sorted(v.pk for v in values))
+                if value_ids in seen:
+                    raise forms.ValidationError(
+                        
+                    )
+                seen.append(value_ids)
 
 
 ProductVariantFormSet = inlineformset_factory(
     Product,
     ProductVariant,
     form=ProductVariantForm,
-    formset=ProductVariantFormSet,
+    formset=CustomProductVariantFormSet,
     extra=1,
     can_delete=True,
     can_delete_extra=True,
@@ -245,17 +281,9 @@ class ReviewForm(BootstrapFormMixin, forms.ModelForm):
 class CategoryForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['name', 'image','is_active']
+        exclude = ['slug']
         widgets = {
             "name": forms.TextInput(attrs={"placeholder": "e.g., Electronics, Clothing"}),
-            "slug": forms.TextInput(attrs={"placeholder": "e.g., electronics, clothing"}),
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
-
-    def clean_slug(self):
-        slug = self.cleaned_data.get('slug')
-        if not slug:
-            name = self.cleaned_data.get('name')
-            if name:
-                slug = name.lower().replace(' ', '-')
-        return slug
