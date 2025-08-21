@@ -249,11 +249,15 @@ def category_delete(request, pk):
         return redirect("dashboard:category_list")
     return render(request, "dashboard/category_confirm_delete.html", {"category": category})
 
+from django.db.models import Sum
+
 def customer_list(request):
     customers = User.objects.all().prefetch_related('order_set', 'addresses')
 
     customer_data = []
     for customer in customers:
+        total_spent = customer.order_set.aggregate(total=Sum('total_price'))['total'] or 0
+
         customer_data.append({
             'id': customer.id,
             'username': customer.username,
@@ -262,11 +266,13 @@ def customer_list(request):
             'is_active': customer.is_active,
             'orders_count': customer.order_set.count(),
             'addresses_count': customer.addresses.count(),
+            'total_spent': total_spent,
         })
 
     return render(request, 'dashboard/customer_list.html', {
         'customers': customer_data,
     })
+
 
 
 # dashboard/views.py
