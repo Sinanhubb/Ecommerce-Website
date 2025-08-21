@@ -10,29 +10,29 @@ import json
 from accounts.models import Wishlist
 
 def index(request):
-    # only active categories
+    
     categories = Category.objects.filter(is_active=True)
 
-    # featured products (only active products in active categories)
+    
     featured_products = Product.objects.filter(
         available=True,
         is_featured=True,
         category__is_active=True
     )[:8]
 
-    # best selling products
+   
     best_selling = Product.objects.filter(
         available=True,
         category__is_active=True
     ).order_by('-sold_count')[:10]
 
-    # just arrived products
+    
     just_arrived = Product.objects.filter(
         available=True,
         category__is_active=True
     ).order_by('-created_at')[:10]
 
-    # most popular products
+   
     most_popular = Product.objects.filter(
         available=True,
         category__is_active=True
@@ -56,6 +56,7 @@ def product_detail(request, slug):
 
     # Increase product view count
     product.views += 1
+    
     product.save()
 
     cart_product_form = CartAddProductForm()
@@ -138,9 +139,6 @@ def product_detail(request, slug):
         'default_variant': default_variant,
     }
     return render(request, 'shop/product_detail.html', context)
-
-
-from accounts.models import Wishlist  # make sure this import exists
 
 def category_detail(request, slug):
     category = get_object_or_404(Category, slug=slug)

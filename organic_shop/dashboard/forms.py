@@ -48,20 +48,22 @@ class ProductForm(BootstrapFormMixin, forms.ModelForm):
             raise ValidationError("Product name must be at least 5 characters long")
         return name
 
+    def clean_description(self):
+        description = self.cleaned_data.get('description')
+        if description and len(description) < 20:
+            raise ValidationError("Description must be at least 20 characters long")
+        return description
+
+    def clean_image(self):
+        image = self.cleaned_data.get('image')
+        if image and image.size > 2 * 1024 * 1024:  # 2MB limit
+            raise ValidationError("Image file size must be under 2MB")
+        return image
+
 
 # -----------------------
 # Product Variant Form
 # -----------------------
-from django import forms
-from django.forms.models import BaseInlineFormSet, inlineformset_factory
-from shop.models import Product, ProductVariant, VariantValue
-
-
-# -----------------------
-# Product Variant Form
-# -----------------------
-# shop/forms.py
-
 class ProductVariantForm(forms.ModelForm):
     class Meta:
         model = ProductVariant
@@ -77,33 +79,28 @@ class ProductVariantForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.option_fields = []
 
-        # Get all available option types (e.g., Color, Size)
-        options = VariantOption.objects.all()
-
+        options = VariantOption.objects.all()  # All available option types
         for option in options:
             field_name = f'option_{option.pk}'
             self.fields[field_name] = forms.ModelChoiceField(
                 label=option.name,
                 queryset=VariantValue.objects.filter(option=option),
-                # ---- CHANGE 1: Make the field NOT required ----
                 required=False,
-                # ---- CHANGE 2: Add a user-friendly empty label ----
                 empty_label=f"Select {option.name}...",
                 widget=forms.Select(attrs={'class': 'form-select'})
             )
             self.option_fields.append(field_name)
 
+            # Set initial value for editing
             if self.instance and self.instance.pk:
                 initial_value = self.instance.values.filter(option=option).first()
                 if initial_value:
                     self.fields[field_name].initial = initial_value
 
     def get_option_fields(self):
-        """Helper method to pass dynamic fields to the template."""
         return [self[field] for field in self.option_fields]
 
     def get_static_fields(self):
-        """Helper for static fields."""
         static_field_names = ['price', 'discount_price', 'stock', 'image', 'id', 'DELETE']
         return [self[field] for field in static_field_names if field in self.fields]
 
@@ -111,31 +108,31 @@ class ProductVariantForm(forms.ModelForm):
         cleaned_data = super().clean()
         price = cleaned_data.get('price')
         discount_price = cleaned_data.get('discount_price')
+        stock = cleaned_data.get('stock')
 
-        if discount_price and price and discount_price >= price:
+        if price is None or price <= 0:
+            raise forms.ValidationError("Price must be greater than 0")
+
+        if discount_price and discount_price >= price:
             self.add_error('discount_price', "Discount price must be lower than the regular price.")
 
-        # ---- CHANGE 3: Gather ONLY the selected values ----
+        if stock is None or stock < 0:
+            raise forms.ValidationError("Stock cannot be negative")
+
+        # Collect selected values
         selected_values = []
         for field_name in self.option_fields:
-            # Only append if a value was actually selected
             if cleaned_data.get(field_name):
                 selected_values.append(cleaned_data[field_name])
-        
-        # ---- CHANGE 4: Ensure at least one option is chosen for a variant ----
-        # If the form is not being deleted and has no selected options, it's invalid.
-        if not self.cleaned_data.get("DELETE") and not selected_values:
-            raise forms.ValidationError(
-                "Each variant must have at least one option (e.g., a Color or Size) selected."
-            )
 
-        # Store them for the formset to use
+        if not self.cleaned_data.get("DELETE") and not selected_values:
+            raise forms.ValidationError("Each variant must have at least one option (e.g., a Color or Size) selected.")
+
         cleaned_data['values'] = selected_values
         return cleaned_data
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        
         if commit:
             instance.save()
 
@@ -143,11 +140,11 @@ class ProductVariantForm(forms.ModelForm):
             instance.values.set(self.cleaned_data['values'])
             if commit:
                 self.save_m2m()
-
         return instance
 
+
 # -----------------------
-# UPDATED Product Variant Formset
+# Product Variant Formset
 # -----------------------
 class CustomProductVariantFormSet(BaseInlineFormSet):
     def clean(self):
@@ -160,14 +157,11 @@ class CustomProductVariantFormSet(BaseInlineFormSet):
             if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE"):
                 continue
 
-            # 'values' is now populated by the form's clean method
             values = form.cleaned_data.get("values")
             if values:
                 value_ids = tuple(sorted(v.pk for v in values))
                 if value_ids in seen:
-                    raise forms.ValidationError(
-                        
-                    )
+                    raise forms.ValidationError("Duplicate variants are not allowed. Please assign each combination only once.")
                 seen.append(value_ids)
 
 
@@ -180,7 +174,6 @@ ProductVariantFormSet = inlineformset_factory(
     can_delete=True,
     can_delete_extra=True,
 )
-
 
 
 # -----------------------
@@ -196,6 +189,20 @@ class OrderForm(BootstrapFormMixin, forms.ModelForm):
             "is_paid": forms.CheckboxInput(),
             "promo_code": forms.Select(attrs={"class": "form-select"}),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        is_paid = cleaned.get('is_paid')
+        payment_method = cleaned.get('payment_method')
+        promo_code = cleaned.get('promo_code')
+
+        if is_paid and not payment_method:
+            raise ValidationError("Paid orders must have a payment method.")
+
+        if promo_code and not promo_code.active:
+            raise ValidationError("Selected promo code is not active.")
+
+        return cleaned
 
 
 class OrderItemForm(BootstrapFormMixin, forms.ModelForm):
@@ -222,6 +229,18 @@ class OrderItemForm(BootstrapFormMixin, forms.ModelForm):
         else:
             self.fields['variant'].queryset = ProductVariant.objects.none()
 
+    def clean(self):
+        cleaned = super().clean()
+        variant = cleaned.get('variant')
+        quantity = cleaned.get('quantity')
+
+        if variant and quantity:
+            if quantity <= 0:
+                raise ValidationError("Quantity must be greater than zero.")
+            if variant.stock < quantity:
+                raise ValidationError(f"Only {variant.stock} items available for this variant.")
+        return cleaned
+
 
 # -----------------------
 # Promo Codes
@@ -242,12 +261,16 @@ class PromoCodeForm(BootstrapFormMixin, forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         start, end, discount = cleaned.get("start_date"), cleaned.get("end_date"), cleaned.get("discount_percentage")
+        usage_limit = cleaned.get("usage_limit")
 
         if discount and (discount <= 0 or discount > 100):
             raise ValidationError("Discount must be between 0 and 100")
 
         if start and end and start >= end:
             raise ValidationError("End date must be after start date")
+
+        if usage_limit is not None and usage_limit < 0:
+            raise ValidationError("Usage limit cannot be negative")
 
         return cleaned
 
@@ -274,6 +297,12 @@ class ReviewForm(BootstrapFormMixin, forms.ModelForm):
             "comment": forms.Textarea(attrs={"rows": 4, "placeholder": "Share your experience"}),
         }
 
+    def clean_comment(self):
+        comment = self.cleaned_data.get('comment')
+        if comment and len(comment.strip()) < 10:
+            raise ValidationError("Review comment must be at least 10 characters long.")
+        return comment
+
 
 # -----------------------
 # Categories
@@ -281,9 +310,21 @@ class ReviewForm(BootstrapFormMixin, forms.ModelForm):
 class CategoryForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Category
-        fields = ['name', 'image','is_active']
+        fields = ['name', 'image', 'is_active']
         exclude = ['slug']
         widgets = {
             "name": forms.TextInput(attrs={"placeholder": "e.g., Electronics, Clothing"}),
             "image": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if Category.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).exists():
+            raise ValidationError("A category with this name already exists.")
+        return name
+
+    def clean_image(self):
+        image = self.cleaned_data.get('image')
+        if image and image.size > 2 * 1024 * 1024:  # 2MB
+            raise ValidationError("Image must be under 2MB")
+        return image

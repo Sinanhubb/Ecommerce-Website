@@ -42,7 +42,7 @@ class Product(models.Model):
     is_featured = models.BooleanField(default=False)  
     sold_count = models.PositiveIntegerField(default=0)  
     created_at = models.DateTimeField(auto_now_add=True)  
-    views = models.PositiveIntegerField(default=0)  
+    views = models.PositiveIntegerField(default=1)  
     available = models.BooleanField(default=True)
     stock = models.PositiveIntegerField(default=0)
 

@@ -8,7 +8,7 @@
       <h5 class="mb-0 fw-bold">
         <i class="bi bi-box-seam me-2"></i> {{ title }}
       </h5>
-      <a href="{% url 'dashboard:dashboard_home' %}" class="btn btn-sm btn-outline-secondary">
+      <a href="{% url 'dashboard:dashboard_home' %}" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Unsaved changes will be lost. Continue?');">
         <i class="bi bi-arrow-left"></i> Back
       </a>
     </div>
@@ -17,6 +17,7 @@
       <form method="post" enctype="multipart/form-data" id="product-form">
         {% csrf_token %}
 
+        <!-- Product Details -->
         <div class="card border-0 shadow-sm mb-4">
           <div class="card-header bg-light">
             <h6 class="mb-0 text-uppercase text-muted fw-bold">
@@ -25,13 +26,13 @@
           </div>
           <div class="card-body">
             <div class="row g-3">
-              {% for field in form %}
+              {% for field in form.visible_fields %}
                 <div class="col-md-6">
                   <label class="form-label fw-semibold">{{ field.label }}</label>
                   {{ field }}
                   {% if field.help_text %}<small class="text-muted d-block">{{ field.help_text }}</small>{% endif %}
                   {% for error in field.errors %}
-                    <div class="text-danger small">{{ error }}</div>
+                    <div class="invalid-feedback d-block">{{ error }}</div>
                   {% endfor %}
                 </div>
               {% endfor %}
@@ -42,71 +43,86 @@
           </div>
         </div>
 
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 text-uppercase text-muted fw-bold">
-              <i class="bi bi-boxes me-2"></i> Variants
-            </h6>
-            <button type="button" class="btn btn-sm btn-primary" id="add-variant">
-              <i class="bi bi-plus-lg"></i> Add Variant
-            </button>
-          </div>
+        <!-- Variants -->
+        <!-- Variants -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 text-uppercase text-muted fw-bold">
+      <i class="bi bi-boxes me-2"></i> Variants
+    </h6>
+    <button type="button" class="btn btn-sm btn-primary" id="add-variant">
+      <i class="bi bi-plus-lg"></i> Add Variant
+    </button>
+  </div>
 
-          <div class="card-body">
-            {{ formset.management_form }}
-            <div id="variants-container">
-              {% for vform in formset.forms %}
-              <div class="variant-item border rounded p-3 mb-3 bg-light">
-                {{ vform.id }}
-                {% if vform.DELETE %}{{ vform.DELETE }}{% endif %}
+  <div class="card-body">
+    {# 🔴 Show duplicate / formset-level errors at the top #}
+    {% if formset.non_form_errors %}
+      <div class="alert alert-danger">
+        <ul class="mb-0">
+          {% for error in formset.non_form_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
 
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="fw-semibold">
-                    <i class="bi bi-tag me-1"></i> Variant {{ forloop.counter }}
-                  </span>
-                  {% if formset.can_delete %}
-                  <button type="button" class="btn btn-sm btn-outline-danger remove-variant">
-                    <i class="bi bi-x-lg"></i> Remove
-                  </button>
-                  {% endif %}
-                </div>
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          // highlight all visible variant blocks in red if error occurs
+          document.querySelectorAll("#variants-container .variant-item").forEach(item => {
+            item.classList.add("border", "border-danger");
+          });
+        });
+      </script>
+    {% endif %}
 
-                <div class="row g-3">
-                  {% for field in vform.get_static_fields %}
-                    {% if field.is_hidden == False and field.name != 'DELETE' %}
-                      <div class="col-md-6">
-                        <label class="form-label fw-semibold">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
-                        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                      </div>
-                    {% endif %}
-                  {% endfor %}
+    {{ formset.management_form }}
+    <div id="variants-container">
+      {% for vform in formset.forms %}
+      <div class="variant-item border rounded p-3 mb-3 bg-light">
+        {% for hidden in vform.hidden_fields %}
+          {{ hidden }}
+        {% endfor %}
 
-                  {% for field in vform.get_option_fields %}
-                    <div class="col-md-6">
-                      <label class="form-label fw-semibold">{{ field.label }}</label>
-                      {{ field }}
-                      {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
-                      {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-                    </div>
-                  {% endfor %}
-                </div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="variant-title fw-semibold">
+            <i class="bi bi-tag me-1"></i> Variant {{ forloop.counter }}
+          </span>
+          {% if formset.can_delete %}
+          <button type="button" class="btn btn-sm btn-outline-danger remove-variant">
+            <i class="bi bi-x-lg"></i> Remove
+          </button>
+          {% endif %}
+        </div>
 
-                <div class="mt-3">
-                  <img class="variant-image-preview img-thumbnail d-none" style="max-height: 120px;" />
-                </div>
+        <div class="row g-3">
+          {% for field in vform.visible_fields %}
+            {% if field.name != 'DELETE' %}
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
+                {% for error in field.errors %}
+                  <div class="invalid-feedback d-block">{{ error }}</div>
+                {% endfor %}
               </div>
-              {% endfor %}
-            </div>
-             {% for error in formset.non_form_errors %}
-                <div class="alert alert-danger mt-3">{{ error }}</div>
-            {% endfor %}
-          </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <div class="mt-3">
+          <img class="variant-image-preview img-thumbnail d-none" style="max-height: 120px;" />
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
         </div>
 
         <div class="d-flex justify-content-end gap-2">
-          <a href="{% url 'dashboard:dashboard_home' %}" class="btn btn-light">
+          <a href="{% url 'dashboard:dashboard_home' %}" class="btn btn-light" onclick="return confirm('Unsaved changes will be lost. Continue?');">
             Cancel
           </a>
           <button class="btn btn-primary">
@@ -119,84 +135,137 @@
 </div>
 
 <script>
-  // --- Product image preview ---
-  const input = document.querySelector('input[type="file"][name="image"]');
-  const img = document.getElementById('product-image-preview');
-  if (input) {
-    input.addEventListener('change', () => {
-      const f = input.files && input.files[0];
-      if (!f) return img.classList.add('d-none');
-      img.src = URL.createObjectURL(f);
-      img.classList.remove('d-none');
-    });
-  }
+document.addEventListener('DOMContentLoaded', function () {
+    const addBtn = document.getElementById('add-variant');
+    const container = document.getElementById('variants-container');
+    const totalInput = document.getElementById('id_variants-TOTAL_FORMS');
+    const tpl = document.getElementById('variant-empty-form').innerHTML.trim();
 
-  // --- Variant image preview ---
-  function attachVariantPreview(container) {
-    const imageInput = container.querySelector('input[type="file"]');
-    if (imageInput) {
-        imageInput.addEventListener('change', () => {
-        const f = imageInput.files && imageInput.files[0];
-        const preview = container.querySelector('.variant-image-preview');
-        if (!preview) return;
-        if (!f) {
-            preview.src = '';
-            return preview.classList.add('d-none');
+    // Helpers to toggle Bootstrap "d-none"
+    const showEl = (el) => el && el.classList.remove('d-none');
+    const hideEl = (el) => el && el.classList.add('d-none');
+
+    // ---- Product Image Preview (bind to the first non-formset file input) ----
+    const productImageInput = document.querySelector('input[type="file"]:not([name^="variants-"])');
+    const productPreview = document.getElementById('product-image-preview');
+    if (productImageInput && productPreview) {
+        productImageInput.addEventListener('change', function () {
+            const file = this.files && this.files[0];
+            if (file) {
+                if (productPreview.dataset.url) URL.revokeObjectURL(productPreview.dataset.url);
+                const url = URL.createObjectURL(file);
+                productPreview.src = url;
+                productPreview.dataset.url = url;
+                showEl(productPreview);
+            } else {
+                if (productPreview.dataset.url) URL.revokeObjectURL(productPreview.dataset.url);
+                productPreview.removeAttribute('src');
+                hideEl(productPreview);
+            }
+        });
+    }
+
+    // ---- Variant Image Preview (per block) ----
+    function attachVariantPreview(block) {
+        const preview = block.querySelector('.variant-image-preview');
+        // Prefer an input whose name ends with "-image"; otherwise fallback to any file input in this block
+        let fileInput = block.querySelector('input[type="file"][name$="-image"]');
+        if (!fileInput) fileInput = block.querySelector('input[type="file"]');
+
+        if (fileInput && preview) {
+            fileInput.addEventListener('change', function () {
+                const file = this.files && this.files[0];
+                if (file) {
+                    if (preview.dataset.url) URL.revokeObjectURL(preview.dataset.url);
+                    const url = URL.createObjectURL(file);
+                    preview.src = url;
+                    preview.dataset.url = url;
+                    showEl(preview);
+                } else {
+                    if (preview.dataset.url) URL.revokeObjectURL(preview.dataset.url);
+                    preview.removeAttribute('src');
+                    hideEl(preview);
+                }
+            });
         }
-        preview.src = URL.createObjectURL(f);
-        preview.classList.remove('d-none');
-      });
     }
-  }
-  document.querySelectorAll('.variant-item').forEach(attachVariantPreview);
 
-  // --- Add variant dynamically ---
-  const addBtn = document.getElementById('add-variant');
-  const container = document.getElementById('variants-container');
-  const tpl = document.getElementById('variant-empty-form');
-  const totalInput = document.getElementById('id_variants-TOTAL_FORMS');
-
-  addBtn.addEventListener('click', () => {
-    const idx = parseInt(totalInput.value, 10);
-    const clone = document.createElement('div');
-    clone.innerHTML = tpl.innerHTML.replace(/__prefix__/g, idx);
-    const block = clone.firstElementChild;
-    container.appendChild(block);
-    totalInput.value = idx + 1;
-    attachVariantPreview(block);
-  });
-
-  // --- Remove variant button ---
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('.remove-variant')) {
-      const variantItem = e.target.closest('.variant-item');
-      // If it's a saved item, check the delete box instead of removing from DOM
-      const deleteCheckbox = variantItem.querySelector('input[type="checkbox"][name$="-DELETE"]');
-      if (deleteCheckbox) {
-          deleteCheckbox.checked = true;
-          variantItem.style.display = 'none'; // Hide it
-      } else {
-          // If it's a new, unsaved item, just remove it
-          variantItem.remove();
-      }
+    // ---- Renumber visible variants 1..N (skip hidden/deleted) ----
+    function renumberVisibleVariants() {
+        const items = Array.from(container.querySelectorAll('.variant-item'));
+        let n = 1;
+        items.forEach(item => {
+            // Hidden if deleted existing (we set style/display none) or has d-none
+            const hidden = item.style.display === 'none' || item.classList.contains('d-none');
+            if (!hidden) {
+                const title = item.querySelector('.variant-title');
+                if (title) {
+                    title.innerHTML = `<i class="bi bi-tag me-1"></i> Variant ${n}`;
+                }
+                n++;
+            }
+        });
     }
-  });
+
+    // ---- Attach previews to existing forms and renumber on load ----
+    container.querySelectorAll('.variant-item').forEach(attachVariantPreview);
+    renumberVisibleVariants();
+
+    // ---- Add variant dynamically ----
+    addBtn.addEventListener('click', () => {
+        const idx = parseInt(totalInput.value, 10);
+        const html = tpl.replace(/__prefix__/g, idx);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+        const block = wrapper.firstElementChild;
+
+        container.appendChild(block);
+        totalInput.value = idx + 1; // TOTAL_FORMS must include the new form
+        attachVariantPreview(block);
+        renumberVisibleVariants();   // keep labels sequential
+    });
+
+    // ---- Remove variant safely (delegated) ----
+    container.addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-variant');
+        if (!btn) return;
+
+        const variantItem = btn.closest('.variant-item');
+        const deleteCheckbox = variantItem.querySelector('input[type="checkbox"][name$="-DELETE"]');
+
+        if (deleteCheckbox) {
+            // Existing variant → mark for deletion, keep TOTAL_FORMS as-is
+            deleteCheckbox.checked = true;
+            variantItem.style.display = 'none';
+        } else {
+            // Newly added unsaved variant → remove node and decrement TOTAL_FORMS
+            variantItem.remove();
+            const forms = container.querySelectorAll('.variant-item'); // only live nodes remain
+            totalInput.value = forms.length;
+        }
+
+        renumberVisibleVariants(); // always fix labels after any removal
+    });
+});
 </script>
 
+<!-- Empty form template -->
 <template id="variant-empty-form">
   <div class="variant-item border rounded p-3 mb-3 bg-light">
-    {{ formset.empty_form.id }}
-    {% if formset.empty_form.DELETE %}{{ formset.empty_form.DELETE }}{% endif %}
-    
+    {% for hidden in formset.empty_form.hidden_fields %}
+      {{ hidden }}
+    {% endfor %}
+
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <span class="fw-semibold"><i class="bi bi-tag me-1"></i> New Variant</span>
+      <span class="variant-title fw-semibold"><i class="bi bi-tag me-1"></i> New Variant</span>
       <button type="button" class="btn btn-sm btn-outline-danger remove-variant">
         <i class="bi bi-x-lg"></i> Remove
       </button>
     </div>
+
     <div class="row g-3">
-      {% for field in formset.empty_form.get_static_fields %}
-        {% if field.is_hidden == False and field.name != 'DELETE' %}
+      {% for field in formset.empty_form.visible_fields %}
+        {% if field.name != 'DELETE' %}
           <div class="col-md-6">
             <label class="form-label fw-semibold">{{ field.label }}</label>
             {{ field }}
@@ -204,15 +273,8 @@
           </div>
         {% endif %}
       {% endfor %}
-
-      {% for field in formset.empty_form.get_option_fields %}
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">{{ field.label }}</label>
-          {{ field }}
-          {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
-        </div>
-      {% endfor %}
     </div>
+
     <img class="variant-image-preview img-thumbnail d-none mt-2" style="max-height: 120px;" />
   </div>
 </template>
