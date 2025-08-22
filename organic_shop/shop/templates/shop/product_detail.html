@@ -195,7 +195,7 @@
                         <div class="card h-100 product-card">
                             {% if variant.discount_price %}
                             <span class="badge bg-danger position-absolute" style="top: 10px; right: 10px;">
-                                -{{ variant.get_discount_percentage }}%
+                                {{ variant.get_discount_percentage }}%
                             </span>
                             {% endif %}
                             <img src="{% if variant.image %}{{ variant.image.url }}{% else %}{{ variant.product.image.url }}{% endif %}" 
@@ -231,7 +231,7 @@
                         <div class="card h-100 product-card">
                             {% if variant.discount_price %}
                             <span class="badge bg-danger position-absolute" style="top: 10px; right: 10px;">
-                                -{{ variant.get_discount_percentage }}%
+                                {{ variant.get_discount_percentage }}%
                             </span>
                             {% endif %}
                             <img src="{% if variant.image %}{{ variant.image.url }}{% else %}{{ variant.product.image.url }}{% endif %}" 

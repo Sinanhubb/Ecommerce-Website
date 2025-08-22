@@ -10,33 +10,36 @@ import json
 from accounts.models import Wishlist
 
 def index(request):
-    
     categories = Category.objects.filter(is_active=True)
 
-    
     featured_products = Product.objects.filter(
         available=True,
         is_featured=True,
         category__is_active=True
     )[:8]
 
-   
     best_selling = Product.objects.filter(
         available=True,
         category__is_active=True
     ).order_by('-sold_count')[:10]
 
-    
     just_arrived = Product.objects.filter(
         available=True,
         category__is_active=True
     ).order_by('-created_at')[:10]
 
-   
     most_popular = Product.objects.filter(
         available=True,
         category__is_active=True
     ).order_by('-views')[:8]
+
+    for product in list(featured_products) + list(best_selling) + list(just_arrived) + list(most_popular):
+        product.default_variant = product.variants.order_by('-stock').first()
+
+    # ✅ wishlist items for current user
+    wishlist_items = []
+    if request.user.is_authenticated:
+        wishlist_items = Wishlist.objects.filter(user=request.user).values_list('product_id', flat=True)
 
     context = {
         'categories': categories,
@@ -44,8 +47,10 @@ def index(request):
         'best_selling': best_selling,
         'just_arrived': just_arrived,
         'most_popular': most_popular,
+        'wishlist_items': wishlist_items,  # pass here
     }
     return render(request, 'shop/index.html', context)
+
 
 
 def product_detail(request, slug):
@@ -170,6 +175,7 @@ def category_detail(request, slug):
         'wishlist_items': wishlist_items,  # pass to template
     }
     return render(request, 'shop/category_detail.html', context)
+
 
 @login_required(login_url='accounts:login')
 def cart_add(request, product_id):

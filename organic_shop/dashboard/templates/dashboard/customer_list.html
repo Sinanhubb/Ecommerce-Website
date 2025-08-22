@@ -45,7 +45,7 @@
                     <th>Status</th>
                     <th>Orders</th>
                     <th>Addresses</th>
-                    <th>Total Purchase</th>  <!-- ✅ move here -->
+                    <th>Total Purchase</th>  
                 </tr>
             </thead>
             <tbody>
@@ -64,7 +64,7 @@
                     </td>
                     <td>{{ customer.orders_count }}</td>
                     <td>{{ customer.addresses_count }}</td>
-                    <td>₹{{ customer.total_spent }}</td>  <!-- ✅ stays here -->
+                    <td>₹{{ customer.total_spent|floatformat:2 }}</td> 
                 </tr>
                 {% empty %}
                 <tr>

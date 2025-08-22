@@ -111,26 +111,35 @@ def wishlist_view(request):
         'wishlist_items': wishlist_items,
         'wishlist_count': wishlist_count
         })
+from django.http import JsonResponse
+
 @login_required
 def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    variant_id = request.POST.get("variant_id")
+    variant_id = request.POST.get('variant_id')
     variant = None
     if variant_id:
-        variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
+        variant = get_object_or_404(ProductVariant, id=variant_id)
 
-    wishlist_item = Wishlist.objects.filter(user=request.user, product=product, variant=variant).first()
+    wishlist_item, created = Wishlist.objects.get_or_create(
+        user=request.user,
+        product=product,
+        variant=variant
+    )
 
-    if wishlist_item:
+    if not created:  
         wishlist_item.delete()
         added = False
     else:
-        Wishlist.objects.create(user=request.user, product=product, variant=variant)
         added = True
 
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        return JsonResponse({'added': added})
-    return redirect("accounts:wishlist")
+    # If it's AJAX → return JSON
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"added": added})
+
+    # Fallback (normal request)
+    redirect_to = request.POST.get("next") or request.META.get("HTTP_REFERER", "/")
+    return redirect(redirect_to)
 
 
 
@@ -140,6 +149,7 @@ def remove_from_wishlist(request, product_id):
     Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
     redirect_to = request.POST.get('next') or 'accounts:wishlist'
     return redirect(redirect_to)
+
 
 @login_required
 def checkout(request):

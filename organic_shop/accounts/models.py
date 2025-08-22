@@ -68,7 +68,7 @@ class PromoCode(models.Model):
     active = models.BooleanField(default=True)
     start_date = models.DateTimeField(default=timezone.now)
     end_date = models.DateTimeField(null=True, blank=True)
-    usage_limit = models.PositiveIntegerField(default=1)  # max number of users
+    usage_limit = models.PositiveIntegerField(default=1) 
 
     def __str__(self):
         return self.code
