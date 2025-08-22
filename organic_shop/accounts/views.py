@@ -313,10 +313,15 @@ def checkout(request):
                         OrderItem.objects.create(
                             order=order,
                             product=cart_item.product,
-                            variant=cart_item.variant, 
-                            price=cart_item.variant.discount_price if cart_item.variant and cart_item.variant.discount_price else (cart_item.variant.price if cart_item.variant else cart_item.product.price),                            
+                            variant=cart_item.variant,
+                            price=(
+                                cart_item.variant.discount_price if cart_item.variant and cart_item.variant.discount_price
+                                else (cart_item.variant.price if cart_item.variant 
+                                    else (cart_item.product.discount_price if cart_item.product.discount_price else cart_item.product.price))
+                            ),
                             quantity=cart_item.quantity
                         )
+
 
                         if cart_item.variant:
                             cart_item.variant.stock -= cart_item.quantity
@@ -332,16 +337,21 @@ def checkout(request):
         return render(request, 'accounts/checkout.html', {
     'addresses': addresses,
     'products': [{
-        'product': item.product,
-        'quantity': item.quantity,
-        'price': item.variant.discount_price if item.variant and item.variant.discount_price else (item.variant.price if item.variant else item.product.price),
-        'total_price': (
-    (item.variant.discount_price if item.variant and item.variant.discount_price else (item.variant.price if item.variant else item.product.price))
-    * item.quantity
-)
+    'product': item.product,
+    'quantity': item.quantity,
+    'price': (
+        item.variant.discount_price if item.variant and item.variant.discount_price
+        else (item.variant.price if item.variant 
+              else (item.product.discount_price if item.product.discount_price else item.product.price))
+    ),
+    'total_price': (
+        (item.variant.discount_price if item.variant and item.variant.discount_price
+         else (item.variant.price if item.variant 
+               else (item.product.discount_price if item.product.discount_price else item.product.price)))
+        * item.quantity
+    )
+} for item in cart.items.all()],
 
-
-    } for item in cart.items.all()],
     'cart_items_count': cart.items.count(),
     'subtotal': subtotal,
     'discount': discount,
@@ -493,3 +503,5 @@ def order_summary(request, order_id):
         'discount': discount,
         'total': total
     })
+
+

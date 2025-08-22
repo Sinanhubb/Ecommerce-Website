@@ -99,6 +99,20 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order #{self.id} - {self.user.username}"
+    
+    @property
+    def get_item_count(self):
+        return self.items.count()
+
+    @property
+    def get_subtotal(self):
+        return sum(item.get_total_price for item in self.items.all())
+
+    @property
+    def get_discount_amount(self):
+        if self.promo_code:
+            return (self.promo_code.discount_percentage / 100) * self.get_subtotal
+        return 0
 
 
 # Order Item
@@ -115,3 +129,10 @@ class OrderItem(models.Model):
     @property
     def total(self):
         return self.price * self.quantity
+    
+    @property
+    def variant_display(self):
+        if self.variant:
+            return ", ".join([f"{v.option.name}: {v.value}" for v in self.variant.values.all()])
+        return ""
+

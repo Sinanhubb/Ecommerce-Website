@@ -90,13 +90,19 @@ def product_detail(request, slug):
         recently_viewed_variant_ids.insert(0, default_variant.id)
     request.session['recently_viewed_variants'] = recently_viewed_variant_ids[:5]
 
-   
-    recently_viewed_queryset = ProductVariant.objects.filter(id__in=recently_viewed_variant_ids).exclude(id=default_variant.id)
-    recently_viewed = sorted(
-        recently_viewed_queryset,
-        key=lambda x: recently_viewed_variant_ids.index(x.id)
-    )
+    if default_variant:
+     recently_viewed_queryset = ProductVariant.objects.filter(
+        id__in=recently_viewed_variant_ids
+    ).exclude(id=default_variant.id)
+    else:
+        recently_viewed_queryset = ProductVariant.objects.filter(
+            id__in=recently_viewed_variant_ids
+        )
 
+    recently_viewed = sorted(
+    recently_viewed_queryset,
+    key=lambda x: recently_viewed_variant_ids.index(x.id)
+)
     # Handle review form POST
     review_form = None
     if request.method == 'POST' and request.user.is_authenticated:
