@@ -51,27 +51,37 @@
                 </div>
             </div>
 
+            <!-- Stock Status Badge -->
+            <div class="mb-3">
+                {% if product.has_variants %}
+                    <span class="badge bg-secondary" id="stock-badge">Select options to see stock</span>
+                {% else %}
+                    {% if product.stock > 0 %}
+                        <span class="badge bg-success">In Stock ({{ product.stock }} available)</span>
+                    {% else %}
+                        <span class="badge bg-danger">Out of Stock</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+
             <!-- Price Section -->
-           
-<div class="price-section mb-4 p-3 bg-light rounded" id="price-display">
-    <div id="price-output">
-        {% if product.has_variants %}
-            <em>Select options to see price</em>
-        {% elif product.display_price %}
-            {% if product.display_discount %}
-                <div class="d-flex align-items-center">
-                    <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
-                    <span class="text-decoration-line-through text-muted me-3">₹{{ product.price }}</span>
-                    <span class="badge bg-danger fs-6">Save {{ product.display_discount }}%</span>
+            <div class="price-section mb-4 p-3 bg-light rounded" id="price-display">
+                <div id="price-output">
+                    {% if product.has_variants %}
+                        <em>Select options to see price</em>
+                    {% elif product.display_price %}
+                        {% if product.display_discount %}
+                            <div class="d-flex align-items-center">
+                                <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
+                                <span class="text-decoration-line-through text-muted me-3">₹{{ product.price }}</span>
+                                <span class="badge bg-danger fs-6">Save {{ product.display_discount }}%</span>
+                            </div>
+                        {% else %}
+                            <span class="fs-3 fw-bold">₹{{ product.price }}</span>
+                        {% endif %}
+                    {% endif %}
                 </div>
-            {% else %}
-                <span class="fs-3 fw-bold">₹{{ product.price }}</span>
-            {% endif %}
-        {% endif %}
-    </div>
-</div>
-
-
+            </div>
 
             <!-- Product Description -->
             <div class="description mb-4">
@@ -82,8 +92,6 @@
             <!-- Action Buttons -->
             <div class="action-buttons mb-4">
                 <form action="{% url 'shop:cart_add' product.id %}" method="post" class="d-inline-block me-2">
-                    
-
                     {% csrf_token %}
                     <input type="hidden" name="variant_id" id="cart-variant-id">
                     <div class="input-group mb-2" style="width: 150px;">
@@ -92,69 +100,86 @@
                         <button class="btn btn-outline-secondary" type="button" onclick="incrementQuantity()">+</button>
                     </div>
 
-                    {% if product.stock > 0 %}
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                    {% if product.has_variants %}
+                        <button type="submit" id="add-to-cart-btn" class="btn btn-primary btn-lg w-100" disabled>
                             <i class="bi bi-cart-plus"></i> Add to Cart
                         </button>
                     {% else %}
-                        <button type="button" class="btn btn-secondary btn-lg w-100" disabled>
+                        {% if product.stock > 0 %}
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="bi bi-cart-plus"></i> Add to Cart
+                            </button>
+                        {% else %}
+                            <button type="button" class="btn btn-secondary btn-lg w-100" disabled>
+                                Out of Stock
+                            </button>
+                        {% endif %}
+                    {% endif %}
+                </form>
+
+                <!-- Variant Options (Button Pills) -->
+                <div id="variant-options">
+                    {% for option, values in variant_options.items %}
+                        <div class="mb-3">
+                            <label class="fw-bold">{{ option }}</label>
+                            <div class="btn-group d-flex flex-wrap" role="group" data-option="{{ option }}">
+                                {% for value in values %}
+                                    <button type="button" class="btn btn-outline-secondary variant-btn m-1"
+                                            data-option="{{ option }}" data-value="{{ value }}">
+                                        {{ value }}
+                                    </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Variant result area -->
+                <div id="variant-info" class="mt-3 p-3 bg-light rounded text-muted">
+                    <em>Select variant options to see price and stock.</em>
+                </div>
+
+                <!-- Buy Now Form -->
+                {% if product.has_variants %}
+                    <form id="buyNowForm" method="POST" action="{% url 'shop:buy_now' product.id %}" class="d-grid gap-2 mt-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
+                        <input type="hidden" id="buy-variant-id" name="variant_id" value="">
+                        <button type="submit" id="buy-now-btn" class="btn btn-success w-100" disabled>
+                            Buy Now
+                        </button>
+                    </form>
+                {% else %}
+                    {% if product.stock > 0 %}
+                        <form id="buyNowForm" method="POST" action="{% url 'shop:buy_now' product.id %}" class="d-grid gap-2 mt-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
+                            <input type="hidden" name="variant_id" value="">
+                            <button type="submit" id="buy-now-btn" class="btn btn-success w-100">
+                                Buy Now
+                            </button>
+                        </form>
+                    {% else %}
+                        <button class="btn btn-secondary w-100 mt-3" disabled>
                             Out of Stock
                         </button>
                     {% endif %}
-                </form>
-                <!-- Variant Options (Button Pills) -->
-                    <div id="variant-options">
-                    {% for option, values in variant_options.items %}
-                        <div class="mb-3">
-                        <label class="fw-bold">{{ option }}</label>
-                        <div class="btn-group d-flex flex-wrap" role="group" data-option="{{ option }}">
-                            {% for value in values %}
-                            <button type="button" class="btn btn-outline-secondary variant-btn m-1"
-                                    data-option="{{ option }}" data-value="{{ value }}">
-                                {{ value }}
-                            </button>
-                            {% endfor %}
-                        </div>
-                        </div>
-                    {% endfor %}
-                    </div>
-
-                    <!-- Variant result area -->
-                    <div id="variant-info" class="mt-3 p-3 bg-light rounded text-muted">
-                    <em>Select variant options to see price and stock.</em>
-                    </div>
-
-
-                <!-- Buy Now Form -->
-                {% if product.stock > 0 %}
-                <form id="buyNowForm" action="{% url 'accounts:direct_checkout' product.id %}" method="POST" class="mt-2">
-                    {% csrf_token %}
-                    <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
-                    <input type="hidden" name="variant_id" id="buy-variant-id">
-                    <button type="submit" class="btn btn-success w-100 btn-lg">Buy Now</button>
-                </form>
                 {% endif %}
 
                 <!-- Wishlist + Share -->
                 <div class="d-flex gap-2 mt-2">
-                <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1">
-                    {% csrf_token %}
-                    
-                    <!-- Hidden variant ID (replace 'product.variants.first.id' with actual selected variant logic) -->
-                    <input type="hidden" name="variant_id" value="{{ product.variants.first.id }}">
-                    
-                    <button type="submit" class="btn btn-outline-danger btn-lg w-100">
-                        <i class="bi bi-heart"></i> Wishlist
+                    <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1">
+                        {% csrf_token %}
+                        <input type="hidden" name="variant_id" value="{{ product.variants.first.id }}">
+                        <button type="submit" class="btn btn-outline-danger btn-lg w-100">
+                            <i class="bi bi-heart"></i> Wishlist
+                        </button>
+                    </form>
+
+                    <button class="btn btn-outline-dark btn-lg" onclick="toggleShareIcons()">
+                        <i class="bi bi-share"></i>
                     </button>
-                </form>
-
-                <button class="btn btn-outline-dark btn-lg" onclick="toggleShareIcons()">
-                    <i class="bi bi-share"></i>
-                </button>
-            </div>
-
-
-
+                </div>
 
                 <!-- Share Icons -->
                 <div id="share-icons" class="mt-3 p-3 bg-light rounded d-none">
@@ -180,84 +205,101 @@
             <div class="highlights mb-4">
                 <h5 class="fw-bold">Highlights</h5>
                 <ul class="list-unstyled">
-                    
+                    <!-- Add product highlights here -->
                 </ul>
             </div>
         </div>
     </div>
 
-            <!-- Similar Products: now using variant objects -->
-            <div class="similar-products mt-5 pt-4 border-top">
-                <h3 class="mb-4 fw-bold">You may also like</h3>
-                <div class="row">
-                    {% for variant in similar_variants %}
-                    <div class="col-6 col-md-3 mb-4">
-                        <div class="card h-100 product-card">
-                            {% if variant.discount_price %}
+    <!-- Similar Products -->
+    <div class="similar-products mt-5 pt-4 border-top">
+        <h3 class="mb-4 fw-bold">You may also like</h3>
+        <div class="row">
+            {% for variant in similar_variants %}
+                <div class="col-6 col-md-3 mb-4">
+                    <div class="card h-100 product-card">
+                        {% if variant.discount_price %}
                             <span class="badge bg-danger position-absolute" style="top: 10px; right: 10px;">
                                 {{ variant.get_discount_percentage }}%
                             </span>
-                            {% endif %}
-                            <img src="{% if variant.image %}{{ variant.image.url }}{% else %}{{ variant.product.image.url }}{% endif %}" 
-                            class="card-img-top p-3" 
-                            alt="{{ variant.product.name }}" 
-                            style="height: 200px; object-fit: contain;">
-                            <div class="card-body">
-                                <h6 class="card-title">{{ variant.product.name|truncatechars:40 }}</h6>
-                                <div class="price">
-                                    {% if variant.discount_price %}
+                        {% endif %}
+                        {% if variant.stock <= 0 %}
+                            <div class="position-absolute w-100 h-100 bg-light bg-opacity-75 d-flex align-items-center justify-content-center">
+                                <span class="badge bg-danger fs-6">Out of Stock</span>
+                            </div>
+                        {% endif %}
+                        <img src="{% if variant.image %}{{ variant.image.url }}{% else %}{{ variant.product.image.url }}{% endif %}" 
+                        class="card-img-top p-3" 
+                        alt="{{ variant.product.name }}" 
+                        style="height: 200px; object-fit: contain;">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ variant.product.name|truncatechars:40 }}</h6>
+                            <div class="price">
+                                {% if variant.discount_price %}
                                     <span class="text-danger fw-bold">₹{{ variant.discount_price }}</span>
                                     <small class="text-decoration-line-through text-muted">₹{{ variant.price }}</small>
-                                    {% else %}
+                                {% else %}
                                     <span class="fw-bold">₹{{ variant.price }}</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="card-footer bg-transparent">
-                                <a href="{% url 'shop:product_detail' variant.product.slug %}" class="btn btn-outline-primary btn-sm w-100">View Details</a>
+                                {% endif %}
                             </div>
                         </div>
+                        <div class="card-footer bg-transparent">
+                            {% if variant.stock > 0 %}
+                                <a href="{% url 'shop:product_detail' variant.product.slug %}" class="btn btn-outline-primary btn-sm w-100">View Details</a>
+                            {% else %}
+                                <button class="btn btn-outline-secondary btn-sm w-100" disabled>Out of Stock</button>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
+            {% endfor %}
+        </div>
+    </div>
 
-            <!-- Recently Viewed -->
-            <div class="recently-viewed mt-5 pt-4 border-top">
-                <h3 class="mb-4 fw-bold">Recently Viewed</h3>
-                <div class="row">
-                    {% for variant in recently_viewed_variants %}
-                    <div class="col-6 col-md-3 mb-4">
-                        <div class="card h-100 product-card">
-                            {% if variant.discount_price %}
+    <!-- Recently Viewed -->
+    <div class="recently-viewed mt-5 pt-4 border-top">
+        <h3 class="mb-4 fw-bold">Recently Viewed</h3>
+        <div class="row">
+            {% for variant in recently_viewed_variants %}
+                <div class="col-6 col-md-3 mb-4">
+                    <div class="card h-100 product-card">
+                        {% if variant.discount_price %}
                             <span class="badge bg-danger position-absolute" style="top: 10px; right: 10px;">
                                 {{ variant.get_discount_percentage }}%
                             </span>
-                            {% endif %}
-                            <img src="{% if variant.image %}{{ variant.image.url }}{% else %}{{ variant.product.image.url }}{% endif %}" 
-                            class="card-img-top p-3" 
-                            alt="{{ variant.product.name }}" 
-                            style="height: 200px; object-fit: contain;">
-                            <div class="card-body">
-                                <h6 class="card-title">{{ variant.product.name|truncatechars:40 }}</h6>
-                                <div class="price">
-                                    {% if variant.discount_price %}
+                        {% endif %}
+                        {% if variant.stock <= 0 %}
+                            <div class="position-absolute w-100 h-100 bg-light bg-opacity-75 d-flex align-items-center justify-content-center">
+                                <span class="badge bg-danger fs-6">Out of Stock</span>
+                            </div>
+                        {% endif %}
+                        <img src="{% if variant.image %}{{ variant.image.url }}{% else %}{{ variant.product.image.url }}{% endif %}" 
+                        class="card-img-top p-3" 
+                        alt="{{ variant.product.name }}" 
+                        style="height: 200px; object-fit: contain;">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ variant.product.name|truncatechars:40 }}</h6>
+                            <div class="price">
+                                {% if variant.discount_price %}
                                     <span class="text-danger fw-bold">₹{{ variant.discount_price }}</span>
                                     <small class="text-decoration-line-through text-muted">₹{{ variant.price }}</small>
-                                    {% else %}
+                                {% else %}
                                     <span class="fw-bold">₹{{ variant.price }}</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="card-footer bg-transparent">
-                                <a href="{% url 'shop:product_detail' variant.product.slug %}" class="btn btn-outline-primary btn-sm w-100">View Details</a>
-                                
+                                {% endif %}
                             </div>
                         </div>
+                        <div class="card-footer bg-transparent">
+                            {% if variant.stock > 0 %}
+                                <a href="{% url 'shop:product_detail' variant.product.slug %}" class="btn btn-outline-primary btn-sm w-100">View Details</a>
+                            {% else %}
+                                <button class="btn btn-outline-secondary btn-sm w-100" disabled>Out of Stock</button>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
+            {% endfor %}
+        </div>
+    </div>
 
     <!-- Reviews Section -->
     <div class="reviews mt-5 pt-4 border-top">
@@ -360,14 +402,16 @@
         </div>
     </div>
 </div>
+
 <script>
 const selectedVariants = {};
 const allVariants = JSON.parse('{{ variant_data_json|escapejs }}');
-const addToCartBtn = document.querySelector('form[action*="cart_add"] button[type="submit"]');
-const buyNowBtn = document.querySelector('#buyNowForm button[type="submit"]');
+const addToCartBtn = document.getElementById('add-to-cart-btn');
+const buyNowBtn = document.getElementById('buy-now-btn');
 const cartVariantInput = document.getElementById('cart-variant-id');
 const buyVariantInput = document.getElementById('buy-variant-id');
 const priceDisplay = document.getElementById('price-display');
+const stockBadge = document.getElementById('stock-badge');
 let variantStock = 0;
 
 // Utility to normalize strings
@@ -413,6 +457,10 @@ document.querySelectorAll('.variant-btn').forEach(btn => {
             if (cartVariantInput) cartVariantInput.value = '';
             if (buyVariantInput) buyVariantInput.value = '';
             infoDiv.innerHTML = `<em>Select variant options to see price and stock.</em>`;
+            if (stockBadge) {
+                stockBadge.className = 'badge bg-secondary';
+                stockBadge.textContent = 'Select options to see stock';
+            }
         }
 
         updateVariantAvailability();
@@ -450,6 +498,17 @@ function fetchVariantData() {
         if (data.success) {
             variantStock = data.stock;
 
+            // Update stock badge
+            if (stockBadge) {
+                if (data.stock > 0) {
+                    stockBadge.className = 'badge bg-success';
+                    stockBadge.textContent = `In Stock `;
+                } else {
+                    stockBadge.className = 'badge bg-danger';
+                    stockBadge.textContent = 'Out of Stock';
+                }
+            }
+
             infoDiv.innerHTML = `
                 <div class="variant-details">
                     ${data.image ? `<img src="${data.image}" class="variant-image mb-2" width="150">` : ''}
@@ -460,8 +519,8 @@ function fetchVariantData() {
                 </div>
             `;
 
-            if (cartVariantInput) cartVariantInput.value = data.sku || '';
-            if (buyVariantInput) buyVariantInput.value = data.sku || '';
+            if (cartVariantInput) cartVariantInput.value = data.variant_id || '';
+            if (buyVariantInput)  buyVariantInput.value  = data.variant_id || '';
 
             const discountPercent = data.discount_price ? Math.round((1 - (data.discount_price / data.price)) * 100) : 0;
             if (data.discount_price) {
@@ -501,6 +560,11 @@ function fetchVariantData() {
             toggleButtons(false);
             if (cartVariantInput) cartVariantInput.value = '';
             if (buyVariantInput) buyVariantInput.value = '';
+            
+            if (stockBadge) {
+                stockBadge.className = 'badge bg-danger';
+                stockBadge.textContent = 'Out of Stock';
+            }
 
             {% if product.discount_price %}
                 priceDisplay.innerHTML = `
@@ -589,6 +653,10 @@ function updateVariantAvailability() {
                     toggleButtons(false);
                     if (cartVariantInput) cartVariantInput.value = '';
                     if (buyVariantInput) buyVariantInput.value = '';
+                    if (stockBadge) {
+                        stockBadge.className = 'badge bg-secondary';
+                        stockBadge.textContent = 'Select options to see stock';
+                    }
                 }
             } else {
                 btn.disabled = false;
@@ -601,8 +669,7 @@ function updateVariantAvailability() {
     });
 }
 
-
-// Quantity increment/decrement controls (unchanged)
+// Quantity increment/decrement controls
 function incrementQuantity() {
     const quantityInput = document.querySelector('input[name="quantity"]');
     let newQuantity = parseInt(quantityInput.value) + 1;
@@ -676,19 +743,16 @@ window.addEventListener("DOMContentLoaded", () => {
 </script>
 
 <style>
-
 .variant-btn.active {
     border-color: #0d6efd;
     background-color: #0d6efd;
     color: #fff;
 }
 
-
 .thumbnail-item.active {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
-
 
 #main-product-image.zoomed {
     transform: scale(1.5);
@@ -737,8 +801,6 @@ input[type="radio"]:checked ~ .star-label {
     opacity: 0.5;
     cursor: not-allowed;
 }
-
 </style>
-
 
 {% endblock %}

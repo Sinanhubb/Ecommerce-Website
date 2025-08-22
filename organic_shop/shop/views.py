@@ -321,17 +321,23 @@ def buy_now(request, product_id):
     except ValueError:
         quantity = 1
 
-    variant_sku = request.POST.get('variant_id')
+    variant_id = request.POST.get('variant_id')  # could be empty
     variant = None
 
-    if variant_sku:
-        variant = get_object_or_404(ProductVariant, sku=variant_sku)
+    # If variant_id exists, fetch variant
+    if variant_id:
+        variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
+
+    # If product has variants but user didn’t pick one → prevent checkout
+    if product.variants.exists() and not variant:
+        messages.error(request, "Please select a variant before buying.")
+        return redirect('shop:product_detail', slug=product.slug)
 
     # Create or update the cart item
     item, created = CartItem.objects.get_or_create(
         cart=cart,
         product=product,
-        variant=variant,
+        variant=variant,  # can be None for non-variant products
         defaults={'quantity': quantity}
     )
 
@@ -340,6 +346,7 @@ def buy_now(request, product_id):
         item.save()
 
     return redirect('accounts:checkout')
+
 
 
 @csrf_exempt
@@ -353,6 +360,23 @@ def get_matching_variant(request):
         product = Product.objects.get(id=product_id)
         variants = ProductVariant.objects.filter(product=product)
 
+        # ✅ Case 1: Product has NO variants (normal product)
+        if not variants.exists():
+            base_price = float(product.price)
+            discount_price = float(product.discount_price) if product.discount_price else None
+
+            return JsonResponse({
+                "success": True,
+                "sku": None,
+                "price": f"{base_price:.2f}",
+                "discount_price": f"{discount_price:.2f}" if discount_price else None,
+                "stock": product.stock,
+                "image": product.image.url if product.image else "",
+                "variant_id": None,   # No variant ID
+                "is_variant_product": False,
+            })
+
+        # ✅ Case 2: Product HAS variants
         if not selected_values:
             highest_stock_variant = variants.order_by('-stock').first()
             if highest_stock_variant:
@@ -367,11 +391,12 @@ def get_matching_variant(request):
                     "stock": highest_stock_variant.stock,
                     "image": highest_stock_variant.image.url if highest_stock_variant.image else "",
                     "variant_id": highest_stock_variant.id,
+                    "is_variant_product": True,
                 })
             else:
                 return JsonResponse({"success": False, "message": "No variants available for this product."})
 
-        # Match by selected values
+        # ✅ Case 3: Match by selected values
         for variant in variants:
             variant_values = list(variant.values.values_list("value", flat=True))
             if sorted(variant_values) == sorted(selected_values):
@@ -386,6 +411,7 @@ def get_matching_variant(request):
                     "stock": variant.stock,
                     "image": variant.image.url if variant.image else "",
                     "variant_id": variant.id,
+                    "is_variant_product": True,
                 })
 
         return JsonResponse({"success": False, "message": "Matching variant not found."})
