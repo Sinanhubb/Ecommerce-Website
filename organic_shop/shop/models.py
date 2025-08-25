@@ -131,6 +131,24 @@ class VariantValue(models.Model):
 
     def __str__(self):
         return f"{self.option.name}: {self.value}"
+    
+def get_default_variant(self):
+    """Always return a usable variant for this product."""
+    if self.has_variants:
+        return self.variants.order_by('-stock').first()
+
+    # Create (or get) a default variant if product has no variants
+    variant, created = ProductVariant.objects.get_or_create(
+        product=self,
+        defaults={
+            "price": self.price,
+            "discount_price": self.discount_price,
+            "stock": self.stock or 0,
+            "sku": f"DEFAULT-{self.id}",
+        }
+    )
+    return variant
+
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')

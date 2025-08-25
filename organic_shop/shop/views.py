@@ -192,11 +192,15 @@ def cart_add(request, product_id):
     if form.is_valid():
         cd = form.cleaned_data
         quantity = cd['quantity']
-        variant_sku = request.POST.get('variant_id')
+        
+        # --- Start of fix ---
+        variant_id = request.POST.get('variant_id') # Get the variant ID from the form
         variant = None
 
-        if variant_sku:
-            variant = get_object_or_404(ProductVariant, sku=variant_sku)
+        if variant_id:
+            # Look up the variant by its ID (pk), not SKU
+            variant = get_object_or_404(ProductVariant, id=variant_id)
+        # --- End of fix ---
 
         item, created = CartItem.objects.get_or_create(
             cart=cart,
@@ -208,9 +212,9 @@ def cart_add(request, product_id):
             item.quantity += quantity
             item.save()
 
-        return redirect('shop:cart_detail')  
+        return redirect('shop:cart_detail')   
 
-    return redirect('shop:product_detail', slug=product.slug) 
+    return redirect('shop:product_detail', slug=product.slug)
 
 @login_required
 def cart_remove(request, item_id):

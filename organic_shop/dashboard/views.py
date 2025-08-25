@@ -7,6 +7,7 @@ from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm,Rev
 from shop.models import Product, ProductVariant, Category,Review
 from accounts.models import Order, OrderItem, PromoCode, Address
 from django.contrib.auth.models import User
+from django.db.models import Sum
 
 # -------------------------
 # Dashboard Home
@@ -123,7 +124,10 @@ def order_list(request):
 
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-    return render(request, 'dashboard/orders/order_detail.html', {'order': order})
+
+    return render(request, 'dashboard/orders/order_detail.html', {
+        'order': order,
+    })
 
 def order_edit(request, order_id):
     order = get_object_or_404(Order, id=order_id)
@@ -249,7 +253,7 @@ def category_delete(request, pk):
         return redirect("dashboard:category_list")
     return render(request, "dashboard/category_confirm_delete.html", {"category": category})
 
-from django.db.models import Sum
+
 
 def customer_list(request):
     customers = User.objects.all().prefetch_related('order_set', 'addresses')

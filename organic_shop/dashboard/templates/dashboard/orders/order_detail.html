@@ -1,23 +1,85 @@
 {% extends 'dashboard/base.html' %}
 {% block content %}
-<h2>Order #{{ order.id }}</h2>
-<p><strong>User:</strong> {{ order.user.username }}</p>
-<p><strong>Address:</strong> {{ order.address }}</p>
-<p><strong>Status:</strong> {{ order.get_status_display }}</p>
-<p><strong>Payment:</strong> {{ order.get_payment_method_display }} {% if order.is_paid %}(Paid){% endif %}</p>
-<p><strong>Total:</strong> {{ order.total_price }}</p>
 
-<h3>Items</h3>
-<table class="table">
-  <tr><th>Product</th><th>Variant</th><th>Price</th><th>Qty</th><th>Total</th></tr>
-  {% for item in order.items.all %}
-  <tr>
-    <td>{{ item.product.name }}</td>
-    <td>{{ item.variant }}</td>
-    <td>{{ item.price }}</td>
-    <td>{{ item.quantity }}</td>
-    <td>{{ item.total }}</td>
-  </tr>
-  {% endfor %}
-</table>
+<div class="container py-4">
+
+  <!-- Invoice Card -->
+  <div class="card shadow-lg">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">Order Invoice</h4>
+      <span class="badge bg-{{ order.is_paid|yesno:'success,danger' }}">
+        {{ order.get_status_display }}
+      </span>
+    </div>
+
+    <div class="card-body">
+      <!-- Order Info -->
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <h5 class="fw-bold">Order Details</h5>
+          <p><strong>Order ID:</strong> #{{ order.id }}</p>
+          <p><strong>User:</strong> {{ order.user.username }}</p>
+          <p><strong>Address:</strong> {{ order.address }}</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <h5 class="fw-bold">Payment</h5>
+          <p>
+            <strong>Method:</strong> {{ order.get_payment_method_display }}
+            {% if order.is_paid %}
+              <span class="badge bg-success ms-2">Paid</span>
+            {% else %}
+              <span class="badge bg-warning text-dark ms-2">Pending</span>
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <!-- Order Items -->
+      <h5 class="fw-bold mb-3">Items</h5>
+      <table class="table table-bordered align-middle">
+        <thead class="table-secondary">
+          <tr>
+            <th>Product</th>
+            <th>Variant</th>
+            <th class="text-end">Price</th>
+            <th class="text-center">Qty</th>
+            <th class="text-end">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in order.items.all %}
+          <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.variant|default:"-" }}</td>
+            <td class="text-end">₹{{ item.price }}</td>
+            <td class="text-center">{{ item.quantity }}</td>
+            <td class="text-end">₹{{ item.total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Summary -->
+      <div class="row mt-4">
+        <div class="col-md-6"></div>
+        <div class="col-md-6">
+          <table class="table table-sm">
+            {% if order.promo_code %}
+            <tr>
+              <th class="text-end">Promo Code ({{ order.promo_code.code }} - {{ order.promo_code.discount_percentage }}%):</th>
+              <td class="text-end text-success">Applied</td>
+            </tr>
+            {% endif %}
+            <tr class="table-dark">
+              <th class="text-end">Grand Total:</th>
+              <td class="text-end fw-bold">₹{{ order.total_price }}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 {% endblock %}
