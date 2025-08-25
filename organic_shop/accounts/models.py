@@ -72,6 +72,19 @@ class PromoCode(models.Model):
 
     def __str__(self):
         return self.code
+    
+    def can_use(self):
+        """Return True if promo is active and usage limit not reached"""
+        now = timezone.now()
+        if not self.active:
+            return False
+        if self.start_date and self.start_date > now:
+            return False
+        if self.end_date and self.end_date < now:
+            return False
+        if self.usage_limit > 0 and self.used_count >= self.usage_limit:
+            return False
+        return True
 
 
 

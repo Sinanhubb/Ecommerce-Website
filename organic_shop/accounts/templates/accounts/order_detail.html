@@ -1,43 +1,66 @@
 {% extends 'shop/base.html' %}
 {% block content %}
 <div class="container py-5">
-  <h2 class="mb-4">🧾 Order #{{ order.id }} Details</h2>
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">🧾 Order #{{ order.id }} Details</h2>
+    <span class="badge bg-primary fs-6">Status: {{ order.get_status_display }}</span>
+  </div>
 
-  <div class="card mb-4">
+  <!-- Order Info Card -->
+  <div class="card mb-4 shadow-sm border-0">
     <div class="card-body">
-      <p><strong>Order Date:</strong> {{ order.created_at|date:"d M Y, H:i A" }}</p>
-      <p><strong>Address:</strong> {{ order.address.full_name }}, {{ order.address.address_line }}, {{ order.address.city }}, {{ order.address.country }} - {{ order.address.postal_code }}</p>
-      <p><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+      <h5 class="card-title mb-3">Order Information</h5>
+      <p class="mb-1"><strong>Order Date:</strong> {{ order.created_at|date:"d M Y, H:i A" }}</p>
+      <p class="mb-1"><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+      <p class="mb-0"><strong>Shipping Address:</strong> <br>
+        {{ order.address.full_name }}<br>
+        {{ order.address.address_line }}<br>
+        {{ order.address.city }}, {{ order.address.country }} - {{ order.address.postal_code }}
+      </p>
     </div>
   </div>
 
-  <div class="card mb-4">
-    <div class="card-header"><strong>Order Items</strong></div>
+  <!-- Order Items Card -->
+  <div class="card mb-4 shadow-sm border-0">
+    <div class="card-header bg-light fw-bold">Order Items</div>
     <ul class="list-group list-group-flush">
       {% for item in items %}
-      <li class="list-group-item d-flex justify-content-between">
+      <li class="list-group-item d-flex justify-content-between align-items-center">
         <div>
-          {{ item.product.name }} (x{{ item.quantity }})
+          <h6 class="mb-1">{{ item.product.name }}</h6>
+          <small class="text-muted">Quantity: {{ item.quantity }}</small>
         </div>
-        <div>
-          ₹{{ item.price|floatformat:2 }}
-        </div>
+        <span class="fw-semibold">₹{{ item.price|floatformat:2 }}</span>
       </li>
       {% endfor %}
     </ul>
   </div>
 
-  <div class="card p-3 shadow-sm">
-    <p><strong>Subtotal:</strong> ₹{{ subtotal|floatformat:2 }}</p>
+  <!-- Summary Card -->
+  <div class="card p-4 shadow-sm border-0 bg-light">
+    <h5 class="fw-bold mb-3">Order Summary</h5>
+    <div class="d-flex justify-content-between mb-2">
+      <span>Subtotal:</span>
+      <span>₹{{ subtotal|floatformat:2 }}</span>
+    </div>
     {% if order.promo_code %}
-    <p><strong>Promo Code:</strong> {{ order.promo_code.code }} ({{ order.promo_code.discount_percentage }}% off)</p>
-    <p><strong>Discount:</strong> ₹{{ discount|floatformat:2 }}</p>
+    <div class="d-flex justify-content-between mb-2">
+      <span>Promo Code: <span class="badge bg-success">{{ order.promo_code.code }}</span> ({{ order.promo_code.discount_percentage }}% off)</span>
+      <span>- ₹{{ discount|floatformat:2 }}</span>
+    </div>
     {% endif %}
-    <h5><strong>Total:</strong> ₹{{ total|floatformat:2 }}</h5>
+    <hr>
+    <div class="d-flex justify-content-between fw-bold fs-5">
+      <span>Total:</span>
+      <span>₹{{ total|floatformat:2 }}</span>
+    </div>
   </div>
 
-  <a href="{% url 'accounts:my_orders' %}" class="btn btn-secondary mt-3">← Back to My Orders</a>
-  <a href="{% url 'accounts:order_tracking' order.id %}" class="btn btn-outline-info btn-sm mt-2">Track Order</a>
-
+  <!-- Action Buttons -->
+  <div class="mt-4 d-flex flex-wrap gap-2">
+    <a href="{% url 'accounts:my_orders' %}" class="btn btn-secondary">← Back to My Orders</a>
+    <a href="{% url 'accounts:order_tracking' order.id %}" class="btn btn-info text-white">Track Order</a>
+  </div>
 </div>
 {% endblock %}

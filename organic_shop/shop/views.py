@@ -193,8 +193,8 @@ def cart_add(request, product_id):
         cd = form.cleaned_data
         quantity = cd['quantity']
         
-        # --- Start of fix ---
-        variant_id = request.POST.get('variant_id') # Get the variant ID from the form
+       
+        variant_id = request.POST.get('variant_id') 
         variant = None
 
         if variant_id:
@@ -315,41 +315,58 @@ def update_cart_item_ajax(request):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)})
 
+# In shop/views.py
+
+from django.contrib import messages # Make sure this is at the top of the file
+
 @login_required
 def buy_now(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    cart = get_or_create_cart(request)
+    # This is the variant's primary key (pk) from the form
+    variant_pk = request.POST.get('variant_id') 
+    
+    # A variant MUST be selected if the product has options
+    if product.variants.exists() and not variant_pk:
+        messages.error(request, "Please select a product option to buy now.")
+        return redirect('shop:product_detail', slug=product.slug)
 
     try:
         quantity = int(request.POST.get('quantity', 1))
-    except ValueError:
-        quantity = 1
+        if quantity <= 0:
+            raise ValueError("Quantity must be at least 1.")
 
-    variant_id = request.POST.get('variant_id')  # could be empty
-    variant = None
+        variant = None
+        stock_to_check = product.stock 
+        variant_sku_for_session = None # The checkout view expects the variant's SKU
 
-    # If variant_id exists, fetch variant
-    if variant_id:
-        variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
+        if variant_pk:
+            variant = get_object_or_404(ProductVariant, pk=variant_pk, product=product)
+            stock_to_check = variant.stock
+            variant_sku_for_session = variant.sku
 
-    # If product has variants but user didn’t pick one → prevent checkout
-    if product.variants.exists() and not variant:
-        messages.error(request, "Please select a variant before buying.")
+        # Check if the requested quantity is available
+        if quantity > stock_to_check:
+            messages.error(request, f"Sorry, only {stock_to_check} are available in stock.")
+            return redirect('shop:product_detail', slug=product.slug)
+
+        # Set the session data for the checkout view. This completely bypasses the cart.
+        request.session['direct_checkout'] = {
+            'product_id': product.id,
+            'variant_id': variant_sku_for_session, # This is the SKU, which the checkout view expects
+            'quantity': quantity
+        }
+        
+        # Clear any old promo code when starting a new direct purchase
+        request.session.pop('applied_promo_code', None)
+
+        return redirect('accounts:checkout')
+
+    except ValueError as e:
+        messages.error(request, str(e))
         return redirect('shop:product_detail', slug=product.slug)
-
-    # Create or update the cart item
-    item, created = CartItem.objects.get_or_create(
-        cart=cart,
-        product=product,
-        variant=variant,  # can be None for non-variant products
-        defaults={'quantity': quantity}
-    )
-
-    if not created:
-        item.quantity += quantity
-        item.save()
-
-    return redirect('accounts:checkout')
+    except ProductVariant.DoesNotExist:
+        messages.error(request, "The selected product option does not exist.")
+        return redirect('shop:product_detail', slug=product.slug)
 
 
 

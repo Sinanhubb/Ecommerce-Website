@@ -50,31 +50,50 @@
                             {% endif %}
                         </div>
 
+                        
                         <!-- Promo Code -->
+                       <!-- Promo Code -->
                         <div class="mb-4">
                             <h4 class="mb-3">Promo Code</h4>
+
+                            {% comment %}
+                            If a promo code is successfully applied, disable the input.
+                            {% endcomment %}
+                            <div class="input-group mb-2">
+                                <input type="text" name="promo_code" class="form-control" placeholder="Enter promo code"
+                                    {% if applied_promo_code %} value="{{ applied_promo_code }}" readonly {% endif %}>
+                                <button class="btn btn-outline-secondary" type="submit" name="apply_promo" value="1"
+                                    {% if applied_promo_code %} disabled {% endif %}>Apply</button>
+                            </div>
+
+                            <!-- Show remove button only if promo is applied -->
                             {% if applied_promo_code %}
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="text-success">
-                                        <strong>{{ applied_promo_code }}</strong> applied.
-                                    </div>
-                                    <a href="?remove_promo=1" class="btn btn-sm btn-outline-danger ms-3">
-                                        <i class="fas fa-times"></i> Remove
+                                <div class="mt-1">
+                                    <a href="?remove_promo=1" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-times"></i> Remove Promo
                                     </a>
-                                </div>
-                            {% else %}
-                                <div class="input-group">
-                                    <input type="text" name="promo_code" class="form-control" placeholder="Enter promo code">
-                                    <button class="btn btn-outline-secondary" type="submit" name="apply_promo" value="1">Apply</button>
                                 </div>
                             {% endif %}
 
+                            <!-- Display messages -->
                             {% if messages %}
                                 {% for message in messages %}
-                                    <div class="mt-2 text-{{ message.tags }}">{{ message }}</div>
+                                    {% if message.tags in 'success error warning info' %}
+                                        <div class="mt-2 alert 
+                                            {% if message.tags == 'success' %}alert-success
+                                            {% elif message.tags == 'error' %}alert-danger
+                                            {% elif message.tags == 'warning' %}alert-warning
+                                            {% else %}alert-info{% endif %}">
+                                            <i class="fas fa-info-circle me-1"></i>{{ message }}
+                                        </div>
+                                    {% endif %}
                                 {% endfor %}
                             {% endif %}
                         </div>
+
+
+
+
 
                         <!-- Payment Method -->
                         <div class="mb-4">
