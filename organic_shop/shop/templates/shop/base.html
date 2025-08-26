@@ -67,6 +67,83 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // This variable will prevent the function from running while it's already busy
+    let isSubmitting = false;
+
+    document.body.addEventListener('submit', function(e) {
+        if (!e.target.matches('.wishlist-form')) {
+            return;
+        }
+
+        e.preventDefault();
+        
+        // If a submission is already in progress, do nothing.
+        if (isSubmitting) {
+            return;
+        }
+        
+        // Set the flag to true and get the form elements
+        isSubmitting = true;
+        const form = e.target;
+        const button = form.querySelector('button[type="submit"]');
+        const icon = button.querySelector('i');
+
+        button.disabled = true; // Visually disable the button
+
+        fetch(form.action, {
+            method: "POST",
+            body: new FormData(form),
+            headers: {
+                "X-CSRFToken": csrfToken,
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        })
+        .then(response => {
+            if (response.status === 403 || response.redirected) {
+                window.location.href = "{% url 'accounts:login' %}?next=" + window.location.pathname;
+                throw new Error('User not authenticated.');
+            }
+            if (!response.ok) {
+                throw new Error('Network response was not ok.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.added) {
+                icon.classList.remove("bi-heart");
+                icon.classList.add("bi-heart-fill", "text-danger");
+            } else {
+                icon.classList.remove("bi-heart-fill", "text-danger");
+                icon.classList.add("bi-heart");
+            }
+
+            const wishlistCountSpan = document.getElementById('wishlist-count');
+            if (wishlistCountSpan && data.wishlist_count !== undefined) {
+                wishlistCountSpan.textContent = data.wishlist_count;
+                if (data.wishlist_count > 0) {
+                    wishlistCountSpan.classList.remove('d-none');
+                } else {
+                    wishlistCountSpan.classList.add('d-none');
+                }
+            }
+        })
+        .catch(error => {
+            if (error.message !== 'User not authenticated.') {
+                console.error("Wishlist Error:", error);
+            }
+        })
+        .finally(() => {
+            // IMPORTANT: Reset the flag and re-enable the button after the request is complete
+            isSubmitting = false;
+            button.disabled = false;
+        });
+    });
+});
+</script>
 
 </body>
 </html>

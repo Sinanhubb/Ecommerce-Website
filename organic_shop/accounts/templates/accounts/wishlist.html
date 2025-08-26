@@ -3,50 +3,108 @@
 
 {% block content %}
 <div class="container py-5">
-    <h2 class="mb-4">My Wishlist</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">My Wishlist</h2>
+        <p class="text-muted mb-0">{{ wishlist_items.count }} item(s)</p>
+    </div>
 
     {% if wishlist_items %}
         <div class="row">
-            {% for item in wishlist_items %}
-                <div class="col-6 col-md-3 mb-4">
-                    <div class="card h-100">
-                        <img src="{{ item.product.image.url }}" class="card-img-top p-2" alt="{{ item.product.name }}" style="height: 200px; object-fit: contain;">
-
-                        <div class="card-body">
-                            <h6 class="card-title">{{ item.product.name|truncatechars:40 }}</h6>
-
-                            <!-- Price Section -->
-                            <div class="price mb-2">
-                                {% if item.has_discount %}
-                                    <span class="text-danger fw-bold">₹{{ item.display_price }}</span>
-                                    <small class="text-muted text-decoration-line-through">
-                                        ₹{{ item.original_price }}
-                                    </small>
-                                    <span class="badge bg-danger">
-                                        Save {{ item.discount_percentage }}%
-                                    </span>
-                                {% else %}
-                                    ₹{{ item.display_price }}
-                                {% endif %}
-                            </div>
-
-                            <a href="{% url 'shop:product_detail' item.product.slug %}" class="btn btn-outline-primary btn-sm w-100 mb-2">
-                                View
+            <div class="col-12">
+                {% for item in wishlist_items %}
+                <div class="card wishlist-item mb-3 shadow-sm">
+                    <div class="row g-0">
+                        <div class="col-md-2 text-center align-self-center">
+                            <a href="{% url 'shop:product_detail' item.product.slug %}">
+                                <img src="{{ item.display_image.url }}"
+                                     class="img-fluid rounded-start p-3"
+                                     alt="{{ item.product.name }}"
+                                     style="max-height: 160px; object-fit: contain;">
                             </a>
+                        </div>
 
-                            <form action="{% url 'accounts:remove_from_wishlist' item.product.id %}" method="post">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-danger btn-sm w-100">
-                                    Remove
-                                </button>
-                            </form>
+                        <div class="col-md-10">
+                            <div class="card-body d-flex flex-column h-100">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="card-title">{{ item.product.name }}</h5>
+                                        {% if item.variant %}
+                                            <p class="card-text text-muted small">
+                                                {% for value in item.variant.values.all %}
+                                                    {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <form action="{% url 'accounts:remove_from_wishlist' item.id %}" method="post" class="ms-3">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-close" title="Remove from wishlist"></button>
+                                    </form>
+                                </div>
+
+                                <div class="my-2">
+                                    {% if item.stock > 10 %}
+                                        <span class="badge bg-success-subtle text-success-emphasis rounded-pill"><i class="bi bi-check-circle-fill"></i> In Stock</span>
+                                    {% elif item.stock > 0 %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock ({{ item.stock }} left)</span>
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill"><i class="bi bi-x-circle-fill"></i> Out of Stock</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="price h5">
+                                    {% if item.has_discount %}
+                                        <span class="text-danger">₹{{ item.display_price }}</span>
+                                        <small class="text-muted text-decoration-line-through ms-2">₹{{ item.original_price }}</small>
+                                    {% else %}
+                                        <span>₹{{ item.display_price }}</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mt-auto">
+                                    {% if item.stock > 0 %}
+                                        <form action="{% url 'shop:cart_add' item.product.id %}" method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="quantity" value="1">
+                                            {% if item.variant %}
+                                                <input type="hidden" name="variant_id" value="{{ item.variant.id }}">
+                                            {% endif %}
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-cart-plus"></i> Add to Cart
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <a href="{% url 'shop:product_detail' item.product.slug %}" class="btn btn-secondary disabled">
+                                            View Product
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            {% endfor %}
+                {% endfor %}
+            </div>
         </div>
     {% else %}
-        <div class="alert alert-info">Your wishlist is empty.</div>
+        <div class="text-center py-5">
+            <div class="display-4 text-muted mb-3">
+                <i class="bi bi-heart"></i>
+            </div>
+            <h4>Your Wishlist is Empty</h4>
+            <p class="text-muted">Looks like you haven't added anything to your wishlist yet.</p>
+            <a href="{% url 'shop:index' %}" class="btn btn-primary mt-3">Continue Shopping</a>
+        </div>
     {% endif %}
 </div>
+
+<style>
+    .wishlist-item {
+        transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+    }
+    .wishlist-item:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+        transform: translateY(-3px);
+    }
+</style>
 {% endblock %}

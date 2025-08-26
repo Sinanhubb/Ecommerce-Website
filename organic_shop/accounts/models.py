@@ -44,6 +44,20 @@ class Wishlist(models.Model):
         elif self.product and self.product.discount_price:
             return int(100 - (self.product.discount_price / self.product.price * 100))
         return 0
+    @property
+    def stock(self):
+        
+        if self.variant:
+            return self.variant.stock
+        # Use getattr for safety, defaulting to 0 if product.stock doesn't exist
+        return getattr(self.product, 'stock', 0)
+
+    @property
+    def display_image(self):
+        
+        if self.variant and self.variant.image:
+            return self.variant.image
+        return self.product.image
 
 
 class Address(models.Model):

@@ -45,7 +45,6 @@
                         </form>
                     </div>
 
-
                     
                     <!-- Product Image -->
                     <div style="height: 200px; overflow: hidden;">
@@ -92,68 +91,36 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
-    // --- Wishlist Form Logic ---
-    document.querySelectorAll('.wishlist-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault(); // Prevent the form from reloading the page
+    // --- Grid/List View Toggle Logic ---
+    const gridViewBtn = document.getElementById('gridView');
+    const listViewBtn = document.getElementById('listView');
+    const productsContainer = document.getElementById('productsContainer');
 
-            const formData = new FormData(form);
+    // Make sure the buttons exist on the page before adding listeners
+    if (gridViewBtn && listViewBtn && productsContainer) {
+        gridViewBtn.addEventListener('click', function() {
+            productsContainer.classList.remove('list-view');
+            gridViewBtn.classList.add('active');
+            listViewBtn.classList.remove('active');
+        });
 
-            fetch(form.action, {
-                method: "POST",
-                body: formData,
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest"
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                const icon = form.querySelector("i");
-
-                // Toggle the heart icon based on the server's response
-                if (data.added) {
-                    icon.classList.remove("bi-heart");
-                    icon.classList.add("bi-heart-fill", "text-danger");
-                } else {
-                    icon.classList.remove("bi-heart-fill", "text-danger");
-                    icon.classList.add("bi-heart");
-                }
-            })
-            .catch(err => console.error("Wishlist error:", err));
-        });
-    });
-
-    // --- Grid/List View Toggle Logic ---
-    const gridViewBtn = document.getElementById('gridView');
-    const listViewBtn = document.getElementById('listView');
-    const productsContainer = document.getElementById('productsContainer');
-
-    // Make sure the buttons exist on the page before adding listeners
-    if (gridViewBtn && listViewBtn && productsContainer) {
-        gridViewBtn.addEventListener('click', function() {
-            productsContainer.classList.remove('list-view');
-            gridViewBtn.classList.add('active');
-            listViewBtn.classList.remove('active');
-        });
-
-        listViewBtn.addEventListener('click', function() {
-            productsContainer.classList.add('list-view');
-            listViewBtn.classList.add('active');
-            gridViewBtn.classList.remove('active');
-        });
-    }
+        listViewBtn.addEventListener('click', function() {
+            productsContainer.classList.add('list-view');
+            listViewBtn.classList.add('active');
+            gridViewBtn.classList.remove('active');
+        });
+    }
 });
 </script>
 <style>
-/* ensure wishlist heart is clickable above stretched-link */
+
 .wishlist-top {
   position: relative;
   z-index: 5;
 }
 
 .stretched-link::after {
-  z-index: 1; /* keep it lower */
+  z-index: 1;
 }
 </style>
 {% endblock %}

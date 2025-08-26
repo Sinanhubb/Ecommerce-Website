@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Order, OrderItem,Address,PromoCode
+from .models import Order, OrderItem,Address,PromoCode,Wishlist
 
 class OrderItemInline(admin.TabularInline):  
     model = OrderItem
@@ -17,3 +17,9 @@ class OrderAdmin(admin.ModelAdmin):
 admin.site.register(Order, OrderAdmin)
 admin.site.register(Address)
 admin.site.register(PromoCode)
+
+@admin.register(Wishlist)
+class WishlistAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'product', 'variant', 'added_at')
+    list_filter = ('user',)
+    search_fields = ('product__name',)

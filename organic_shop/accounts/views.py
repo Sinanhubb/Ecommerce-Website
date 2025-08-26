@@ -104,51 +104,93 @@ def edit_profile_view(request):
 
 @login_required
 def wishlist_view(request):
-    wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product')
+    wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product', 'variant')
     wishlist_count = wishlist_items.count()
     return render(request, 'accounts/wishlist.html', {
         'wishlist_items': wishlist_items,
         'wishlist_count': wishlist_count
         })
+
+
 from django.http import JsonResponse
+
+# accounts/views.py
+
+# ... (keep all your other imports)
+from django.contrib import messages
+from django.http import JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from shop.models import Product, ProductVariant
+from .models import Wishlist
+
+# ... (keep your other views like user_login, profile_view, etc.)
+
+
+# accounts/views.py
 
 @login_required
 def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     variant_id = request.POST.get('variant_id')
     variant = None
-    if variant_id:
-        variant = get_object_or_404(ProductVariant, id=variant_id)
 
-    wishlist_item, created = Wishlist.objects.get_or_create(
+    if variant_id:
+        try:
+            variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
+        except (ValueError, TypeError):
+            variant = None
+
+    # Use filter().first() which is safer than get()
+    wishlist_item = Wishlist.objects.filter(
         user=request.user,
         product=product,
         variant=variant
-    )
+    ).first()
 
-    if not created:  
+    if wishlist_item:
+        # If the item already exists, delete it
         wishlist_item.delete()
         added = False
+        message = "Removed from your wishlist."
     else:
+        # If it does not exist, create it
+        Wishlist.objects.create(
+            user=request.user,
+            product=product,
+            variant=variant
+        )
         added = True
+        message = "Added to your wishlist."
 
-    # If it's AJAX → return JSON
+    wishlist_count = Wishlist.objects.filter(user=request.user).count()
+
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        return JsonResponse({"added": added})
+        return JsonResponse({
+            "added": added,
+            "wishlist_count": wishlist_count,
+            "message": message
+        })
 
-    # Fallback (normal request)
+    messages.success(request, message)
     redirect_to = request.POST.get("next") or request.META.get("HTTP_REFERER", "/")
     return redirect(redirect_to)
 
-
-
 @login_required
 @require_POST
-def remove_from_wishlist(request, product_id):
-    Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
-    redirect_to = request.POST.get('next') or 'accounts:wishlist'
+def remove_from_wishlist(request, item_id):
+    """
+    BUG FIX: Removes a specific item from the wishlist by its own ID, not the product's ID.
+    This is much safer and more precise.
+    """
+    # Find the specific wishlist item and ensure it belongs to the logged-in user for security
+    wishlist_item = get_object_or_404(Wishlist, id=item_id, user=request.user)
+    wishlist_item.delete()
+    messages.success(request, "Item removed from your wishlist.")
+    
+    redirect_to = request.POST.get('next', 'accounts:wishlist')
     return redirect(redirect_to)
-
 
 from decimal import Decimal
 from django.utils import timezone
@@ -532,5 +574,3 @@ def order_summary(request, order_id):
         'discount': discount,
         'total': total
     })
-
-

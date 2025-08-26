@@ -194,105 +194,134 @@
       </div>
 
       <!-- Wishlist Section -->
-      <div id="wishlist-section" class="card shadow-sm p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4><i class="fas fa-heart me-2 text-danger"></i>My Wishlist</h4>
-          <span class="badge bg-danger rounded-pill">{{ wishlist.count }}</span>
+      {% comment %} This entire block replaces your old wishlist section {% endcomment %}
+<div id="wishlist-section" class="card shadow-sm p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="bi bi-heart-fill me-2 text-danger"></i>My Wishlist</h4>
+        <span class="badge bg-danger rounded-pill">{{ wishlist.count }} item(s)</span>
+    </div>
+
+    {% if wishlist %}
+        <div class="row">
+            <div class="col-12">
+                {% for item in wishlist %}
+                <div class="card wishlist-item mb-3 shadow-sm">
+                    <div class="row g-0">
+                        <div class="col-md-2 text-center align-self-center">
+                            <a href="{% url 'shop:product_detail' item.product.slug %}">
+                                <img src="{{ item.display_image.url }}"
+                                     class="img-fluid rounded-start p-3"
+                                     alt="{{ item.product.name }}"
+                                     style="max-height: 160px; object-fit: contain;">
+                            </a>
+                        </div>
+
+                        <div class="col-md-10">
+                            <div class="card-body d-flex flex-column h-100">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="card-title">{{ item.product.name }}</h5>
+                                        {% if item.variant %}
+                                            <p class="card-text text-muted small">
+                                                {% for value in item.variant.values.all %}
+                                                    {{ value.option.name }}: {{ value.value }}{% if not forloop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <form action="{% url 'accounts:remove_from_wishlist' item.id %}" method="post" class="ms-3">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-close" title="Remove from wishlist"></button>
+                                    </form>
+                                </div>
+
+                                <div class="my-2">
+                                    {% if item.stock > 10 %}
+                                        <span class="badge bg-success-subtle text-success-emphasis rounded-pill"><i class="bi bi-check-circle-fill"></i> In Stock</span>
+                                    {% elif item.stock > 0 %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock ({{ item.stock }} left)</span>
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill"><i class="bi bi-x-circle-fill"></i> Out of Stock</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="price h5">
+                                    {% if item.has_discount %}
+                                        <span class="text-danger">₹{{ item.display_price }}</span>
+                                        <small class="text-muted text-decoration-line-through ms-2">₹{{ item.original_price }}</small>
+                                    {% else %}
+                                        <span>₹{{ item.display_price }}</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mt-auto">
+                                    {% if item.stock > 0 %}
+                                        <form action="{% url 'shop:cart_add' item.product.id %}" method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="quantity" value="1">
+                                            {% if item.variant %}
+                                                <input type="hidden" name="variant_id" value="{{ item.variant.id }}">
+                                            {% endif %}
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-cart-plus"></i> Add to Cart
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <button class="btn btn-secondary" disabled>Out of Stock</button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
-        {% if wishlist %}
-          <div class="row">
-            {% for item in wishlist %}
-              <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
-                <div class="card h-100 shadow-sm">
-                  <div class="position-relative">
-                    <img src="{{ item.product.image.url }}" class="card-img-top" alt="{{ item.variant.product.name }}
-">
-                    <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2" 
-                            onclick="removeFromWishlist({{ item.id }})">
-                      <i class="fas fa-times"></i>
-                    </button>
-                  </div>
-                  <div class="card-body">
-    <h5 class="card-title">{{ item.variant.name|default:item.product.name|truncatechars:30 }}</h5>
-    
-    {% if item.variant.discount_price %}
-        <span class="card-text text-success fw-bold">
-            ₹{{ item.variant.discount_price }}
-        </span>
     {% else %}
-        <span class="card-text text-success fw-bold">
-            ₹{{ item.variant.price }}
-        </span>
-    {% endif %}
-    
-    {% if item.variant.price and item.variant.discount_price %}
-        <span class="text-decoration-line-through text-muted me-3">
-            ₹{{ item.variant.price }}
-        </span>
-        <span class="badge bg-danger fs-6">
-            Save {{ item.variant.get_discount_percentage }}%
-        </span>
-    {% endif %}
-    
-    {% if item.variant.stock %}
-        <span class="badge bg-success">In Stock</span>
-    {% else %}
-        <span class="badge bg-secondary">Out of Stock</span>
-    {% endif %}
-</div>
-
-                  <div class="card-footer bg-transparent d-grid gap-2">
-                  <a href="{% url 'shop:product_detail' item.product.slug %}" class="btn btn-sm btn-primary">
-                    <i class="fas fa-eye me-1"></i> View
-                  </a>
-                  {% if item.product.stock %}
-                    <form method="post" action="{% url 'accounts:remove_from_wishlist' item.product.id %}">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{% url 'accounts:profile' %}">
-                      <button type="submit" class="btn btn-outline-danger btn-sm w-100">Remove</button>
-                    </form>
-                  {% else %}
-                    <button type="button" class="btn btn-sm btn-secondary" disabled>
-                      Out of Stock
-                    </button>
-                  {% endif %}
-                </div>
-
-                </div>
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div class="text-center py-4">
-            <i class="fas fa-heart fa-3x text-muted mb-3"></i>
+        <div class="text-center py-4">
+            <i class="bi bi-heart fa-3x text-muted mb-3"></i>
             <p class="text-muted">Your wishlist is empty.</p>
             <a href="{% url 'shop:index' %}" class="btn btn-primary">
-              <i class="fas fa-shopping-cart me-1"></i> Browse Products
+                <i class="bi bi-cart me-1"></i> Browse Products
             </a>
-          </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+        </div>
+    {% endif %}
 </div>
 
+{% block extra_js %}
 <script>
-  function removeFromWishlist(itemId) {
-    if (confirm('Are you sure you want to remove this item from your wishlist?')) {
-      fetch(`/accounts/wishlist/remove/${itemId}/`, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': '{{ csrf_token }}',
-          'Content-Type': 'application/json',
-        },
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          location.reload();
-        }
-      });
-    }
-  }
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebarLinks = document.querySelectorAll('.list-group-item-action');
+    
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Check if it's an internal anchor link
+            const targetId = this.getAttribute('href');
+            if (targetId.startsWith('#')) {
+                e.preventDefault(); // Stop the default jump
+
+                // Remove 'active' from all links
+                sidebarLinks.forEach(l => l.classList.remove('active'));
+                // Add 'active' to the clicked link
+                this.classList.add('active');
+
+                // Smoothly scroll to the target section
+                document.querySelector(targetId).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            }
+        });
+    });
+});
 </script>
+{% endblock %}
+<style>
+    .wishlist-item {
+        transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+    }
+    .wishlist-item:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+        transform: translateY(-3px);
+    }
+</style>
 {% endblock %}

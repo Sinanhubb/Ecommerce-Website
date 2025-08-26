@@ -168,9 +168,11 @@
 
                 <!-- Wishlist + Share -->
                 <div class="d-flex gap-2 mt-2">
-                    <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1">
+                    <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1 wishlist-form">
                         {% csrf_token %}
-                        <input type="hidden" name="variant_id" value="{{ product.variants.first.id }}">
+                        
+                        <input type="hidden" name="variant_id" id="wishlist-variant-id" value="{{ default_variant.id | default:'' }}">
+                        
                         <button type="submit" class="btn btn-outline-danger btn-lg w-100">
                             <i class="bi bi-heart"></i> Wishlist
                         </button>
@@ -414,6 +416,7 @@ const priceDisplay = document.getElementById('price-display');
 const stockBadge = document.getElementById('stock-badge');
 let variantStock = 0;
 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const wishlistVariantInput = document.getElementById('wishlist-variant-id');
 
 // Utility to normalize strings
 function normalize(str) {
@@ -520,8 +523,10 @@ function fetchVariantData() {
                 </div>
             `;
 
-            if (cartVariantInput) cartVariantInput.value = data.variant_id || '';
-            if (buyVariantInput)  buyVariantInput.value  = data.variant_id || '';
+            const variantId = data.variant_id || '';
+            if (cartVariantInput) cartVariantInput.value = variantId;
+            if (buyVariantInput) buyVariantInput.value = variantId;
+            if (wishlistVariantInput) wishlistVariantInput.value = variantId;
 
             const discountPercent = data.discount_price ? Math.round((1 - (data.discount_price / data.price)) * 100) : 0;
             if (data.discount_price) {
@@ -561,6 +566,7 @@ function fetchVariantData() {
             toggleButtons(false);
             if (cartVariantInput) cartVariantInput.value = '';
             if (buyVariantInput) buyVariantInput.value = '';
+            if (wishlistVariantInput) wishlistVariantInput.value = '';
             
             if (stockBadge) {
                 stockBadge.className = 'badge bg-danger';
