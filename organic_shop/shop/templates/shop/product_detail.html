@@ -413,6 +413,7 @@ const buyVariantInput = document.getElementById('buy-variant-id');
 const priceDisplay = document.getElementById('price-display');
 const stockBadge = document.getElementById('stock-badge');
 let variantStock = 0;
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
 // Utility to normalize strings
 function normalize(str) {
@@ -483,7 +484,7 @@ function fetchVariantData() {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": "{{ csrf_token }}"
+            "X-CSRFToken": csrfToken
         },
         body: JSON.stringify({
             product_id: {{ product.id }},
