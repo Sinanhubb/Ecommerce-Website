@@ -1,13 +1,15 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.views.decorators.http import require_POST
-from django.http import JsonResponse
 from .models import Category, Product, Cart, CartItem, Review,VariantOption,VariantValue,ProductVariant
+from django.views.decorators.http import require_POST
 from .forms import CartAddProductForm,ReviewForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Avg
-import json
+from django.db.models import Avg,Subquery, OuterRef,F
+from django.db.models.functions import Coalesce
 from accounts.models import Wishlist
+from django.http import JsonResponse
+from django.contrib import messages
+import json
 
 def index(request):
     categories = Category.objects.filter(is_active=True)
@@ -151,26 +153,43 @@ def product_detail(request, slug):
     }
     return render(request, 'shop/product_detail.html', context)
 
+
+
+
 def category_detail(request, slug):
-    category = get_object_or_404(Category, slug=slug)
-    products = category.products.filter(available=True).prefetch_related('variants')
     category = get_object_or_404(Category, slug=slug, is_active=True)
+    products = Product.objects.filter(category=category, available=True)
+
+    
+    # It finds the 'effective_price' which is the discount_price or the regular price.
+    effective_price_subquery = ProductVariant.objects.filter(
+        product=OuterRef('pk')
+    ).annotate(
+        effective_price=Coalesce('discount_price', 'price')
+    ).order_by('-stock').values('effective_price')[:1]
+
+    # 3. Annotate the main queryset with this new 'sorting_price'
+    products = products.annotate(
+        sorting_price=Subquery(effective_price_subquery),
+        avg_rating=Avg('reviews__rating')
+    ).prefetch_related('variants')
 
     sort = request.GET.get('sort')
+    # 4. Use the new 'sorting_price' field for ordering
     if sort == 'price_asc':
-        products = sorted(products, key=lambda p: (p.variants.order_by('-stock').first().price if p.variants.exists() else 0))
+        products = products.order_by('sorting_price')
     elif sort == 'price_desc':
-        products = sorted(products, key=lambda p: (p.variants.order_by('-stock').first().price if p.variants.exists() else 0), reverse=True)
+        products = products.order_by('-sorting_price')
+    # ... rest of the function is the same ...
     elif sort == 'newest':
         products = products.order_by('-created_at')
     elif sort == 'rating':
-        products = sorted(products, key=lambda p: p.reviews.aggregate(avg=Avg('rating'))['avg'] or 0, reverse=True)
+    
+        products = products.order_by(F('avg_rating').desc(nulls_last=True))
 
     for product in products:
-        default_variant = product.variants.order_by('-stock').first()
-        product.default_variant = default_variant
+        product.default_variant = product.variants.order_by('-stock').first()
 
-    # ✅ wishlist items for current user
     wishlist_items = []
     if request.user.is_authenticated:
         wishlist_items = Wishlist.objects.filter(user=request.user).values_list('product_id', flat=True)
@@ -178,7 +197,7 @@ def category_detail(request, slug):
     context = {
         'category': category,
         'products': products,
-        'wishlist_items': wishlist_items,  # pass to template
+        'wishlist_items': wishlist_items,
     }
     return render(request, 'shop/category_detail.html', context)
 
@@ -198,9 +217,9 @@ def cart_add(request, product_id):
         variant = None
 
         if variant_id:
-            # Look up the variant by its ID (pk), not SKU
+            
             variant = get_object_or_404(ProductVariant, id=variant_id)
-        # --- End of fix ---
+        
 
         item, created = CartItem.objects.get_or_create(
             cart=cart,
@@ -232,7 +251,7 @@ def cart_detail(request):
 
 def get_or_create_cart(request):
     if request.user.is_authenticated:
-        # If session has anonymous cart, merge it
+        
         session_key = request.session.session_key
         if session_key:
             anon_cart = Cart.objects.filter(session_key=session_key, user__isnull=True).first()
@@ -314,10 +333,6 @@ def update_cart_item_ajax(request):
         return JsonResponse({"success": True})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)})
-
-# In shop/views.py
-
-from django.contrib import messages # Make sure this is at the top of the file
 
 @login_required
 def buy_now(request, product_id):

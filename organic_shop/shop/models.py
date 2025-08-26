@@ -4,6 +4,8 @@ from django.urls import reverse
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.text import slugify
+import shortuuid
+from django.db.models import Sum, Min
 
 
 class Category(models.Model):
@@ -49,13 +51,22 @@ class Product(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             base_slug = slugify(self.name)
-            slug = base_slug
-            counter = 1
-            while Product.objects.filter(slug=slug).exclude(id=self.id).exists():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-            self.slug = slug
+            query = Product.objects.filter(slug=base_slug)
+            if self.pk:
+                query = query.exclude(pk=self.pk)
+            
+            if query.exists():
+                self.slug = f"{base_slug}-{shortuuid.uuid()[:8]}"
+            else:
+                self.slug = base_slug
         super().save(*args, **kwargs)
+
+
+    @property
+    def total_stock(self):
+        if self.has_variants:
+            return self.variants.aggregate(total=Sum('stock'))['total'] or 0
+        return self.stock
     @property
     def has_variants(self):
         
@@ -63,14 +74,6 @@ class Product(models.Model):
     @property
     def is_active(self):
         return self.available
-
-    @property
-    def total_stock(self):
-        
-        if self.has_variants:
-            return sum(variant.stock for variant in self.variants.all())
-        return self.stock
-
 
     def __str__(self):
         return self.name
@@ -131,24 +134,6 @@ class VariantValue(models.Model):
 
     def __str__(self):
         return f"{self.option.name}: {self.value}"
-    
-def get_default_variant(self):
-    """Always return a usable variant for this product."""
-    if self.has_variants:
-        return self.variants.order_by('-stock').first()
-
-    # Create (or get) a default variant if product has no variants
-    variant, created = ProductVariant.objects.get_or_create(
-        product=self,
-        defaults={
-            "price": self.price,
-            "discount_price": self.discount_price,
-            "stock": self.stock or 0,
-            "sku": f"DEFAULT-{self.id}",
-        }
-    )
-    return variant
-
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
@@ -175,12 +160,16 @@ class ProductVariant(models.Model):
             counter += 1
         return sku
 
+   
     def save(self, *args, **kwargs):
-        # Save first to get PK for M2M values
-        super().save(*args, **kwargs)
-        if not self.sku:
-            self.sku = self.generate_sku()
-            super().save(update_fields=['sku'])
+        with transaction.atomic():
+            if self._state.adding:
+                super().save(*args, **kwargs)
+
+            if not self.sku:
+                self.sku = self.generate_sku()
+            
+            super().save(*args, **kwargs)
 
     @property
     def get_discount_percentage(self):
