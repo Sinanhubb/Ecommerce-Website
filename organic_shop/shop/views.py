@@ -4,7 +4,7 @@ from django.views.decorators.http import require_POST
 from .forms import CartAddProductForm,ReviewForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Avg,Subquery, OuterRef,F
+from django.db.models import Avg,Subquery, OuterRef,F,Prefetch
 from django.db.models.functions import Coalesce
 from accounts.models import Wishlist
 from django.http import JsonResponse
@@ -14,31 +14,38 @@ import json
 def index(request):
     categories = Category.objects.filter(is_active=True)
 
+    # 2. Define a reusable Prefetch object to get the highest-stocked variant
+    default_variant_prefetch = Prefetch(
+        'variants',
+        queryset=ProductVariant.objects.order_by('-stock'),
+        to_attr='default_variant_list' # This creates a temporary attribute
+    )
+
+    # 3. Apply this Prefetch to all your product queries
     featured_products = Product.objects.filter(
-        available=True,
-        is_featured=True,
-        category__is_active=True
-    )[:8]
+        available=True, is_featured=True, category__is_active=True
+    ).prefetch_related(default_variant_prefetch)[:8]
 
     best_selling = Product.objects.filter(
-        available=True,
-        category__is_active=True
-    ).order_by('-sold_count')[:10]
+        available=True, category__is_active=True
+    ).order_by('-sold_count').prefetch_related(default_variant_prefetch)[:10]
 
     just_arrived = Product.objects.filter(
-        available=True,
-        category__is_active=True
-    ).order_by('-created_at')[:10]
+        available=True, category__is_active=True
+    ).order_by('-created_at').prefetch_related(default_variant_prefetch)[:10]
 
     most_popular = Product.objects.filter(
-        available=True,
-        category__is_active=True
-    ).order_by('-views')[:8]
+        available=True, category__is_active=True
+    ).order_by('-views').prefetch_related(default_variant_prefetch)[:8]
 
-    for product in list(featured_products) + list(best_selling) + list(just_arrived) + list(most_popular):
-        product.default_variant = product.variants.order_by('-stock').first()
+    # 4. Attach the default variant from the prefetched data (NO database queries here)
+    product_lists = [featured_products, best_selling, just_arrived, most_popular]
+    for product_list in product_lists:
+        for product in product_list:
+            # Get the first variant from the list we fetched, or None if the list is empty
+            product.default_variant = product.default_variant_list[0] if product.default_variant_list else None
 
-    # ✅ wishlist items for current user
+    # ... (rest of the view is the same)
     wishlist_items = []
     if request.user.is_authenticated:
         wishlist_items = Wishlist.objects.filter(user=request.user).values_list('product_id', flat=True)
@@ -49,9 +56,11 @@ def index(request):
         'best_selling': best_selling,
         'just_arrived': just_arrived,
         'most_popular': most_popular,
-        'wishlist_items': wishlist_items,  # pass here
+        'wishlist_items': wishlist_items,
     }
     return render(request, 'shop/index.html', context)
+
+
 
 
 
