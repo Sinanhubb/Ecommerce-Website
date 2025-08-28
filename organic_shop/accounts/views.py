@@ -272,7 +272,13 @@ def checkout(request):
                 return redirect('shop:product_detail', slug=product.slug)
 
         quantity = direct_data['quantity']
-        price = variant.discount_price if variant.discount_price else variant.price
+        # Corrected Code
+        if variant:
+            # If a variant exists, use its price
+            price = variant.discount_price if variant.discount_price else variant.price
+        else:
+            # Otherwise, fall back to the main product's price
+            price = product.discount_price if product.discount_price else product.price
         subtotal = price * quantity
         addresses = Address.objects.filter(user=user)
 
@@ -437,30 +443,46 @@ def checkout(request):
         'applied_promo_code': applied_promo_code
     })
 
+# accounts/views.py
+
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from shop.models import Product, ProductVariant # Make sure models are imported
+
 @login_required
 def direct_checkout(request, pk):
     product = get_object_or_404(Product, pk=pk)
     variant_id = request.POST.get('variant_id')
-    
-    # Validate variant belongs to product
-    variant = get_object_or_404(ProductVariant, sku=variant_id, product=product)
-    
+    variant = None # Initialize variant as None by default
+
+    # --- NEW: Conditionally find the variant ---
+    if variant_id:
+        # A variant was selected, so we MUST find it.
+        try:
+            variant = ProductVariant.objects.get(sku=variant_id, product=product)
+        except ProductVariant.DoesNotExist:
+            messages.error(request, "The selected product variant does not exist.")
+            return redirect('shop:product_detail', slug=product.slug)
+
     try:
         quantity = int(request.POST.get('quantity', 1))
         if quantity <= 0:
-            raise ValueError("Quantity must be at least 1")
-            
-        if quantity > variant.stock:
-            raise ValueError(f"Only {variant.stock} available in stock")
-            
+            raise ValueError("Quantity must be at least 1.")
+
+        # --- NEW: Check stock on either the variant or the main product ---
+        # Note: This assumes your Product model has a 'stock' field for non-variant products.
+        stock_available = variant.stock if variant else product.stock
+        if quantity > stock_available:
+            raise ValueError(f"Only {stock_available} item(s) are available in stock.")
+
+        # Set up the session data, storing the SKU if a variant exists, otherwise None
         request.session['direct_checkout'] = {
             'product_id': product.id,
-            'variant_id': variant.sku,
+            'variant_id': variant.sku if variant else None,
             'quantity': quantity
         }
-        
         return redirect('accounts:checkout')
-        
+
     except ValueError as e:
         messages.error(request, str(e))
         return redirect('shop:product_detail', slug=product.slug)
