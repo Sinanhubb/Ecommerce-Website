@@ -4,7 +4,7 @@ from django.views.decorators.http import require_POST
 from .forms import CartAddProductForm,ReviewForm
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Avg,Subquery, OuterRef,F,Prefetch
+from django.db.models import Avg,Subquery, OuterRef,F,Prefetch,Count
 from django.db.models.functions import Coalesce
 from accounts.models import Wishlist
 from django.http import JsonResponse
@@ -453,10 +453,10 @@ def update_cart_item_ajax(request):
 @login_required
 def buy_now(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    # This is the variant's primary key (pk) from the form
+    
     variant_pk = request.POST.get('variant_id') 
     
-    # A variant MUST be selected if the product has options
+    
     if product.variants.exists() and not variant_pk:
         messages.error(request, "Please select a product option to buy now.")
         return redirect('shop:product_detail', slug=product.slug)
@@ -468,7 +468,7 @@ def buy_now(request, product_id):
 
         variant = None
         stock_to_check = product.stock 
-        variant_sku_for_session = None # The checkout view expects the variant's SKU
+        variant_sku_for_session = None 
 
         if variant_pk:
             variant = get_object_or_404(ProductVariant, pk=variant_pk, product=product)
@@ -483,11 +483,11 @@ def buy_now(request, product_id):
         # Set the session data for the checkout view. This completely bypasses the cart.
         request.session['direct_checkout'] = {
             'product_id': product.id,
-            'variant_id': variant_sku_for_session, # This is the SKU, which the checkout view expects
+            'variant_id': variant_sku_for_session, 
             'quantity': quantity
         }
         
-        # Clear any old promo code when starting a new direct purchase
+        
         request.session.pop('applied_promo_code', None)
 
         return redirect('accounts:checkout')
@@ -500,76 +500,69 @@ def buy_now(request, product_id):
         return redirect('shop:product_detail', slug=product.slug)
 
 
-
-
 @require_POST
 def get_matching_variant(request):
     try:
         data = json.loads(request.body)
         product_id = data.get("product_id")
         selected_values = data.get("selected_values", [])
+        product = get_object_or_404(Product, id=product_id)
 
-        product = Product.objects.get(id=product_id)
-        variants = ProductVariant.objects.filter(product=product)
-
-        # ✅ Case 1: Product has NO variants (normal product)
-        if not variants.exists():
+        # ✅ FIX: First, check if the product has any variants at all.
+        if not product.variants.exists():
+            # This is a simple product with no variants. Return its own data.
             base_price = float(product.price)
             discount_price = float(product.discount_price) if product.discount_price else None
 
             return JsonResponse({
                 "success": True,
-                "sku": None,
+                "sku": None, # Simple products might not have a SKU
                 "price": f"{base_price:.2f}",
                 "discount_price": f"{discount_price:.2f}" if discount_price else None,
                 "stock": product.stock,
                 "image": product.image.url if product.image else "",
-                "variant_id": None,   # No variant ID
+                "variant_id": None, # No variant ID for simple products
                 "is_variant_product": False,
             })
 
-        # ✅ Case 2: Product HAS variants
+        # If we are here, it means the product DOES have variants.
+        # Now we proceed with the logic for finding the correct variant.
+        
+        variant = None
         if not selected_values:
-            highest_stock_variant = variants.order_by('-stock').first()
-            if highest_stock_variant:
-                base_price = float(highest_stock_variant.price)
-                discount_price = float(highest_stock_variant.discount_price) if highest_stock_variant.discount_price else None
+            # If no options are selected, return the default (highest stock) variant
+            variant = product.variants.order_by('-stock').first()
+        else:
+            # If options ARE selected, use the efficient query to find the exact match
+            num_selected = len(selected_values)
+            variant = ProductVariant.objects.filter(
+                product_id=product_id,
+                values__value__in=selected_values
+            ).annotate(
+                value_count=Count('values')
+            ).filter(
+                value_count=num_selected
+            ).first()
 
-                return JsonResponse({
-                    "success": True,
-                    "sku": highest_stock_variant.sku,
-                    "price": f"{base_price:.2f}",
-                    "discount_price": f"{discount_price:.2f}" if discount_price else None,
-                    "stock": highest_stock_variant.stock,
-                    "image": highest_stock_variant.image.url if highest_stock_variant.image else "",
-                    "variant_id": highest_stock_variant.id,
-                    "is_variant_product": True,
-                })
-            else:
-                return JsonResponse({"success": False, "message": "No variants available for this product."})
+        if not variant:
+            return JsonResponse({"success": False, "message": "This combination is not available."})
 
-        # ✅ Case 3: Match by selected values
-        for variant in variants:
-            variant_values = list(variant.values.values_list("value", flat=True))
-            if sorted(variant_values) == sorted(selected_values):
-                base_price = float(variant.price)
-                discount_price = float(variant.discount_price) if variant.discount_price else None
+        # A matching variant was found, so we package its data
+        base_price = float(variant.price)
+        discount_price = float(variant.discount_price) if variant.discount_price else None
+        
+        image_url = variant.image.url if variant.image else (product.image.url if product.image else "")
 
-                return JsonResponse({
-                    "success": True,
-                    "sku": variant.sku,
-                    "price": f"{base_price:.2f}",
-                    "discount_price": f"{discount_price:.2f}" if discount_price else None,
-                    "stock": variant.stock,
-                    "image": variant.image.url if variant.image else "",
-                    "variant_id": variant.id,
-                    "is_variant_product": True,
-                })
-
-        return JsonResponse({"success": False, "message": "Matching variant not found."})
-
-    except Product.DoesNotExist:
-        return JsonResponse({"success": False, "message": "Product not found."})
+        return JsonResponse({
+            "success": True,
+            "sku": variant.sku,
+            "price": f"{base_price:.2f}",
+            "discount_price": f"{discount_price:.2f}" if discount_price else None,
+            "stock": variant.stock,
+            "image": image_url,
+            "variant_id": variant.id,
+            "is_variant_product": True,
+        })
 
     except Exception as e:
-        return JsonResponse({"success": False, "message": f"Error: {str(e)}"})
+        return JsonResponse({"success": False, "message": "An unexpected error occurred."})
