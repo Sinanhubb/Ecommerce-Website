@@ -262,26 +262,18 @@ def cart_detail(request):
 
     
 
+
+
 def get_or_create_cart(request):
     if request.user.is_authenticated:
-        
-        session_key = request.session.session_key
-        if session_key:
-            anon_cart = Cart.objects.filter(session_key=session_key, user__isnull=True).first()
-            if anon_cart:
-                user_cart, created = Cart.objects.get_or_create(user=request.user)
-                for item in anon_cart.items.all():
-                    existing_item = user_cart.items.filter(product=item.product, variant=item.variant).first()
-                    if existing_item:
-                        existing_item.quantity += item.quantity
-                        existing_item.save()
-                    else:
-                        item.cart = user_cart
-                        item.save()
-                anon_cart.delete()
+        # For logged-in users, the logic is now simple.
+        # The merge already happened at login via the signal.
         cart, _ = Cart.objects.get_or_create(user=request.user)
     else:
-        session_key = request.session.session_key or request.session.create()
+        # The logic for anonymous users remains the same.
+        if not request.session.session_key:
+            request.session.create()
+        session_key = request.session.session_key
         cart, _ = Cart.objects.get_or_create(session_key=session_key, user=None)
     return cart
 
