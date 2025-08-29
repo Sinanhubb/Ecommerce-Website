@@ -86,6 +86,10 @@ class PromoCode(models.Model):
 
     def __str__(self):
         return self.code
+    @property
+    def used_count(self):
+        """Counts how many orders have used this promo code."""
+        return self.order_set.count()
     
     def can_use(self):
         """Return True if promo is active and usage limit not reached"""
@@ -133,8 +137,7 @@ class Order(models.Model):
 
     @property
     def get_subtotal(self):
-        return sum(item.get_total_price for item in self.items.all())
-
+        return sum(item.total for item in self.items.all())
     @property
     def get_discount_amount(self):
         if self.promo_code:

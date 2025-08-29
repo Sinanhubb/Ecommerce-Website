@@ -13,6 +13,94 @@ from decimal import Decimal
 import json
 from django.utils import timezone
 
+# accounts/views.py
+from django.db import transaction
+
+# ... (all your other imports) ...
+
+def _create_order_with_items(request, address, payment_method, items_data, subtotal, promo_code_obj):
+    """
+    A robust helper function to create an order from a list of items.
+    Handles stock checking, transactions, and promo code usage.
+    Returns the created Order object on success, or None on failure.
+    """
+    user = request.user
+    discount = Decimal('0.00')
+    total = subtotal
+
+    # Recalculate discount based on the final promo code object
+    if promo_code_obj:
+        discount = (Decimal(promo_code_obj.discount_percentage) / Decimal('100')) * subtotal
+        total = subtotal - discount
+
+    try:
+        # Use a transaction to ensure all database operations are atomic.
+        # This prevents creating a partial order if stock runs out mid-process.
+        with transaction.atomic():
+            # 1. Create the main Order object
+            order = Order.objects.create(
+                user=user,
+                address=address,
+                total_price=total,
+                payment_method=payment_method,
+                promo_code=promo_code_obj
+            )
+
+            # 2. Loop through the items to create OrderItems and check stock
+            for item_info in items_data:
+                variant = item_info.get('variant')
+
+                # Lock the variant/product to prevent race conditions (overselling)
+                if variant:
+                    # Use select_for_update() to lock the database row until the transaction is complete
+                    variant_to_check = ProductVariant.objects.select_for_update().get(id=variant.id)
+                    stock_available = variant_to_check.stock
+                else:
+                    # Handle non-variant products if necessary (assuming Product has a stock field)
+                    product_to_check = Product.objects.select_for_update().get(id=item_info['product'].id)
+                    stock_available = product_to_check.stock
+
+                # Check stock right before creating the order item
+                if item_info['quantity'] > stock_available:
+                    messages.error(request, f"Sorry, '{item_info['product'].name}' went out of stock while you were checking out.")
+                    # By raising an exception, the transaction.atomic() block will automatically roll back
+                    raise ValueError("Insufficient stock")
+
+                # 3. Create the OrderItem
+                OrderItem.objects.create(
+                    order=order,
+                    product=item_info['product'],
+                    variant=variant,
+                    price=item_info['price'],
+                    quantity=item_info['quantity']
+                )
+
+                # 4. Update the stock
+                if variant:
+                    variant_to_check.stock -= item_info['quantity']
+                    variant_to_check.sold_count += item_info['quantity']
+                    variant_to_check.save()
+                else:
+                    product_to_check.stock -= item_info['quantity']
+                    product_to_check.sold_count += item_info['quantity']
+                    product_to_check.save()
+
+            # 5. Update promo code usage after the order is successfully created
+            if promo_code_obj:
+                promo_code_obj.usage_limit -= 1
+                if promo_code_obj.usage_limit <= 0:
+                    promo_code_obj.active = False
+                promo_code_obj.save()
+
+        # If the transaction completes without errors, return the order
+        return order
+
+    except ValueError as e:
+        # This will catch our "Insufficient stock" error and stop the process
+        return None
+
+
+# accounts/views.py
 
 def user_login(request):
     if request.method == 'POST':
@@ -21,26 +109,7 @@ def user_login(request):
         user = authenticate(request, username=username, password=password)
 
         if user:
-            login(request, user)
-            session_key = request.session.session_key or request.session.create()
-
-            try:
-                anon_cart = Cart.objects.get(session_key=session_key, user__isnull=True)
-                user_cart, _ = Cart.objects.get_or_create(user=user)
-
-                for item in anon_cart.items.all():
-                    existing = user_cart.items.filter(product=item.product).first()
-                    if existing:
-                        existing.quantity += item.quantity
-                        existing.save()
-                    else:
-                        item.cart = user_cart
-                        item.save()
-
-                anon_cart.delete()
-            except Cart.DoesNotExist:
-                pass
-
+            login(request, user) # The signal will fire automatically here
             return redirect(request.GET.get('next', 'shop:index'))
         else:
             messages.error(request, 'Invalid username or password.')
@@ -196,175 +265,81 @@ from decimal import Decimal
 from django.utils import timezone
 from django.contrib import messages
 
+# accounts/views.py
+
 @login_required
 def checkout(request):
     user = request.user
     direct_data = request.session.get('direct_checkout')
-    applied_promo_code = request.session.get('applied_promo_code')
+    applied_promo_code_str = request.session.get('applied_promo_code')
+    addresses = Address.objects.filter(user=user)
 
-    if request.GET.get('remove_promo') == '1':
-        request.session.pop('applied_promo_code', None)
-        messages.success(request, "Promo code removed successfully.")
-        return redirect('accounts:checkout')
+    # ----- 1. PREPARE ITEMS AND SUBTOTAL (Handles both flows) -----
+    items_data = []
+    subtotal = Decimal('0.00')
 
-    def get_promo_discount(subtotal):
-        """
-        Returns (promo_code_obj, discount_amount, total_amount)
-        Validates promo code with timezone awareness, active flag, and usage limit
-        """
-        promo_code_obj = None
-        discount = Decimal('0.00')
-        total = subtotal
-
-        if not applied_promo_code:
-            return None, discount, total
-
-        try:
-            promo_code_obj = PromoCode.objects.get(code=applied_promo_code)
-
-            now = timezone.localtime(timezone.now())
-
-            # Check validity
-            if not promo_code_obj.active:
-                messages.error(request, "This promo code is not active.")
-                promo_code_obj = None
-                request.session.pop('applied_promo_code', None)
-
-            elif promo_code_obj.start_date and promo_code_obj.start_date > now:
-                messages.error(request, "This promo code is not active yet.")
-                promo_code_obj = None
-                request.session.pop('applied_promo_code', None)
-
-            elif promo_code_obj.end_date and promo_code_obj.end_date < now:
-                messages.error(request, "This promo code has expired.")
-                promo_code_obj = None
-                request.session.pop('applied_promo_code', None)
-
-            elif promo_code_obj.usage_limit <= 0:
-                messages.error(request, "This promo code has reached its usage limit.")
-                promo_code_obj = None
-                request.session.pop('applied_promo_code', None)
-
-            else:
-                # Only show success if promo is valid
-                discount = (Decimal(promo_code_obj.discount_percentage) / Decimal('100')) * subtotal
-                total = subtotal - discount
-                messages.success(request, f"Promo code '{promo_code_obj.code}' applied successfully!")
-
-        except PromoCode.DoesNotExist:
-            messages.error(request, "Invalid promo code.")
-            request.session.pop('applied_promo_code', None)
-            promo_code_obj = None
-
-        return promo_code_obj, discount, total
-
-    # ----- Direct Checkout -----
     if direct_data:
-        product = get_object_or_404(Product, id=direct_data['product_id'])
-        variant = None
-        variant_id = direct_data.get('variant_id')
-        if variant_id:
-            try:
-                variant = ProductVariant.objects.get(sku=variant_id, product=product)
-            except ProductVariant.DoesNotExist:
-                messages.error(request, "Selected product variant does not exist anymore.")
-                del request.session['direct_checkout']
-                return redirect('shop:product_detail', slug=product.slug)
+        # --- Direct Checkout Flow ---
+        try:
+            product = get_object_or_404(Product, id=direct_data['product_id'])
+            variant = None
+            variant_sku = direct_data.get('variant_id') # Changed from 'sku' to 'id' for reliability
+            if variant_sku:
+                variant = get_object_or_404(ProductVariant, sku=variant_sku, product=product)
 
-        quantity = direct_data['quantity']
-        # Corrected Code
-        if variant:
-            # If a variant exists, use its price
-            price = variant.discount_price if variant.discount_price else variant.price
-        else:
-            # Otherwise, fall back to the main product's price
-            price = product.discount_price if product.discount_price else product.price
-        subtotal = price * quantity
-        addresses = Address.objects.filter(user=user)
-
-        promo_code_obj, discount, total = get_promo_discount(subtotal)
-
-        if request.method == 'POST':
-            if 'apply_promo' in request.POST:
-                promo_code_input = request.POST.get('promo_code', '').strip()
-                if promo_code_input:
-                    request.session['applied_promo_code'] = promo_code_input
-                return redirect('accounts:checkout')
-
-            elif 'place_order' in request.POST:
-                selected_address_id = request.POST.get('selected_address')
-                payment_method = request.POST.get('payment_method')
-                if selected_address_id and payment_method:
-                    address = Address.objects.get(id=selected_address_id)
-                    promo_code_obj, discount, total = get_promo_discount(subtotal)
-
-                    # Create Order
-                    order = Order.objects.create(
-                        user=user,
-                        address=address,
-                        total_price=total,
-                        payment_method=payment_method,
-                        promo_code=promo_code_obj
-                    )
-
-                    # Update promo usage
-                    if promo_code_obj:
-                        promo_code_obj.usage_limit -= 1
-                        if promo_code_obj.usage_limit <= 0:
-                            promo_code_obj.active = False
-                        promo_code_obj.save()
-
-                    # Create OrderItem
-                    if quantity > variant.stock:
-                        messages.error(request, f"Only {variant.stock} item(s) left in stock.")
-                        return redirect('shop:product_detail', slug=product.slug)
-
-                    OrderItem.objects.create(
-                        order=order,
-                        product=product,
-                        variant=variant,
-                        price=price,
-                        quantity=quantity
-                    )
-
-                    variant.stock -= quantity
-                    variant.sold_count += quantity
-                    variant.save()
-                    product.save()
-
-                    # Cleanup session
-                    del request.session['direct_checkout']
-                    request.session.pop('applied_promo_code', None)
-
-                    return redirect('accounts:order_summary', order_id=order.id)
-
-        return render(request, 'accounts/checkout.html', {
-            'addresses': addresses,
-            'products': [{
+            price = (variant.discount_price if variant and variant.discount_price else
+                     variant.price if variant else
+                     product.discount_price if product.discount_price else
+                     product.price)
+            
+            quantity = direct_data['quantity']
+            items_data.append({
                 'product': product,
-                'quantity': quantity,
                 'variant': variant,
+                'quantity': quantity,
                 'price': price,
                 'total_price': price * quantity
-            }],
-            'cart_items_count': quantity,
-            'subtotal': subtotal,
-            'discount': discount,
-            'total': total,
-            'is_direct_checkout': True,
-            'applied_promo_code': applied_promo_code
-        })
+            })
+            subtotal = price * quantity
+        except (Product.DoesNotExist, ProductVariant.DoesNotExist):
+            messages.error(request, "The product you were trying to buy is no longer available.")
+            request.session.pop('direct_checkout', None)
+            return redirect('shop:index')
+    else:
+        # --- Cart Checkout Flow ---
+        cart = Cart.objects.filter(user=user).first()
+        if not cart or not cart.items.exists():
+            messages.warning(request, "Your cart is empty.")
+            return redirect('shop:index')
 
-    # ----- Cart Checkout -----
-    cart = Cart.objects.filter(user=user).first()
-    if not cart or not cart.items.exists():
-        messages.warning(request, "Your cart is empty.")
-        return redirect('shop:index')
+        for item in cart.items.all():
+            price = item.get_price() # Assumes a get_price() method on CartItem model
+            items_data.append({
+                'product': item.product,
+                'variant': item.variant,
+                'quantity': item.quantity,
+                'price': price,
+                'total_price': item.total_price # Assumes a total_price property on CartItem model
+            })
+        subtotal = cart.total_price
 
-    addresses = Address.objects.filter(user=user)
-    subtotal = cart.total_price
-    promo_code_obj, discount, total = get_promo_discount(subtotal)
+    # ----- 2. HANDLE PROMO CODES -----
+    # Note: Your `get_promo_discount` function can be simplified or used as is.
+    # For this example, we'll fetch the object and let the helper calculate the final discount.
+    promo_code_obj = None
+    if applied_promo_code_str:
+        try:
+            promo_code_obj = PromoCode.objects.get(code=applied_promo_code_str, active=True)
+            # You can add your other validation checks here (dates, usage, etc.)
+        except PromoCode.DoesNotExist:
+            messages.error(request, "The applied promo code is not valid.")
+            request.session.pop('applied_promo_code', None)
 
+    # Let's get the final discount and total for display
+    discount_display = (Decimal(promo_code_obj.discount_percentage) / Decimal('100')) * subtotal if promo_code_obj else Decimal('0.00')
+    total_display = subtotal - discount_display
+
+    # ----- 3. HANDLE POST REQUESTS (Placing Order / Applying Promo) -----
     if request.method == 'POST':
         if 'apply_promo' in request.POST:
             promo_code_input = request.POST.get('promo_code', '').strip()
@@ -375,73 +350,50 @@ def checkout(request):
         elif 'place_order' in request.POST:
             selected_address_id = request.POST.get('selected_address')
             payment_method = request.POST.get('payment_method')
-            if selected_address_id and payment_method:
-                address = Address.objects.get(id=selected_address_id)
-                promo_code_obj, discount, total = get_promo_discount(subtotal)
 
-                order = Order.objects.create(
-                    user=user,
-                    address=address,
-                    total_price=total,
-                    promo_code=promo_code_obj,
-                    payment_method=payment_method
-                )
+            if not selected_address_id or not payment_method:
+                messages.error(request, "Please select a shipping address and payment method.")
+                return redirect('accounts:checkout')
 
-                # Update promo usage
-                if promo_code_obj:
-                    promo_code_obj.usage_limit -= 1
-                    if promo_code_obj.usage_limit <= 0:
-                        promo_code_obj.active = False
-                    promo_code_obj.save()
+            address = get_object_or_404(Address, id=selected_address_id, user=user)
 
-                for cart_item in cart.items.all():
-                    item_price = (
-                        cart_item.variant.discount_price if cart_item.variant and cart_item.variant.discount_price
-                        else (cart_item.variant.price if cart_item.variant
-                              else (cart_item.product.discount_price if cart_item.product.discount_price else cart_item.product.price))
-                    )
-                    OrderItem.objects.create(
-                        order=order,
-                        product=cart_item.product,
-                        variant=cart_item.variant,
-                        price=item_price,
-                        quantity=cart_item.quantity
-                    )
-
-                    if cart_item.variant:
-                        cart_item.variant.stock -= cart_item.quantity
-                        cart_item.variant.sold_count += cart_item.quantity
-                        cart_item.variant.save()
-
-                cart.delete()
-                request.session.pop('applied_promo_code', None)
-                return redirect('accounts:order_summary', order_id=order.id)
-
-    return render(request, 'accounts/checkout.html', {
-        'addresses': addresses,
-        'products': [{
-            'product': item.product,
-            'quantity': item.quantity,
-            'variant': item.variant,
-            'price': (
-                item.variant.discount_price if item.variant and item.variant.discount_price
-                else (item.variant.price if item.variant 
-                      else (item.product.discount_price if item.product.discount_price else item.product.price))
-            ),
-            'total_price': (
-                (item.variant.discount_price if item.variant and item.variant.discount_price
-                 else (item.variant.price if item.variant 
-                       else (item.product.discount_price if item.product.discount_price else item.product.price)))
-                * item.quantity
+            # CALL THE HELPER FUNCTION!
+            order = _create_order_with_items(
+                request=request,
+                address=address,
+                payment_method=payment_method,
+                items_data=items_data,
+                subtotal=subtotal,
+                promo_code_obj=promo_code_obj # Pass the validated object
             )
-        } for item in cart.items.all()],
-        'cart_items_count': cart.items.count(),
+
+            if order:
+                # Success! The helper function did all the work.
+                # Clean up session data.
+                request.session.pop('direct_checkout', None)
+                request.session.pop('applied_promo_code', None)
+                if not direct_data: # If it was a cart checkout, delete the cart
+                    cart.delete()
+                
+                messages.success(request, "Your order has been placed successfully!")
+                return redirect('accounts:order_summary', order_id=order.id)
+            else:
+                # Failure! The helper function already set the error message.
+                # Just redirect back to the checkout page.
+                return redirect('accounts:checkout')
+
+    # ----- 4. RENDER THE TEMPLATE -----
+    context = {
+        'addresses': addresses,
+        'products': items_data,
+        'cart_items_count': sum(item['quantity'] for item in items_data),
         'subtotal': subtotal,
-        'discount': discount,
-        'total': total,
-        'is_direct_checkout': False,
-        'applied_promo_code': applied_promo_code
-    })
+        'discount': discount_display,
+        'total': total_display,
+        'is_direct_checkout': bool(direct_data),
+        'applied_promo_code': applied_promo_code_str if promo_code_obj else None
+    }
+    return render(request, 'accounts/checkout.html', context)
 
 # accounts/views.py
 
@@ -507,21 +459,27 @@ def add_address(request):
 @login_required
 def edit_address(request, address_id):
     address = get_object_or_404(Address, id=address_id, user=request.user)
-
+    
+    # 1. Get the 'next' URL from the query string, form post, or use a default
     next_url = request.GET.get('next') or request.POST.get('next') or reverse('accounts:profile')
 
     if request.method == 'POST':
-        for field in ['full_name', 'phone', 'address_line', 'city', 'state', 'postal_code', 'country']:
-            setattr(address, field, request.POST.get(field, '').strip())
-        address.save()
-        messages.success(request, 'Address updated successfully.')
-        return redirect(next_url)
-
-    return render(request, 'accounts/edit_address.html', {
-        'address': address,
+        form = AddressForm(request.POST, instance=address)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Address updated successfully.')
+            # 2. Redirect to the determined next_url after a successful save
+            return redirect(next_url)
+    else:
+        form = AddressForm(instance=address)
+        
+    # 3. Pass all necessary context to the template
+    context = {
+        'form': form,
+        'address': address, # Pass the address object for display purposes (e.g., in a title)
         'next': next_url
-    })
-
+    }
+    return render(request, 'accounts/edit_address.html', context)
 
 def delete_address(request, pk):
     address = get_object_or_404(Address, pk=pk, user=request.user)

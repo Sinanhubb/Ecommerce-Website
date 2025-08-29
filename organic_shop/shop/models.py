@@ -241,6 +241,30 @@ class CartItem(models.Model):
     def __str__(self):
         name = self.variant if self.variant else self.product
         return f"{name} x {self.quantity}"
+    
+    @property
+    def total_price(self):
+        """Calculates the total price for this cart item (price * quantity)."""
+        return self.get_price() * self.quantity
+
+    def get_price(self):
+        """
+        Determines the correct price for the item.
+        It prioritizes prices in this order:
+        1. Variant's discount price
+        2. Variant's regular price
+        3. Product's discount price
+        4. Product's regular price
+        """
+        # Use Decimal for accurate currency calculations
+        if self.variant and self.variant.discount_price:
+            return self.variant.discount_price
+        if self.variant:
+            return self.variant.price
+        if self.product.discount_price:
+            return self.product.discount_price
+        # Fallback to the main product's regular price
+        return self.product.price
 
 class Review(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
