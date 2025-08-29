@@ -34,193 +34,208 @@
         </div>
 
         <!-- Product Info Column -->
-        <div class="col-md-6">
-            <!-- Product Header -->
-            <div class="product-header mb-3">
-                <h1 class="fw-bold">{{ product.name }}</h1>
-                <div class="d-flex align-items-center">
-                    {% if average_rating %}
-                        <div class="rating me-3">
-                            <span class="stars text-warning">
-                                {% for i in "12345" %}
-                                    {% if forloop.counter <= average_rating|floatformat:0 %}
-                                        ★
-                                    {% else %}
-                                        ☆
-                                    {% endif %}
-                                {% endfor %}
-                            </span>
-                            <span class="ms-1">{{ average_rating|floatformat:1 }} ({{ reviews.count }} reviews)</span>
-                        </div>
-                    {% else %}
-                        <span class="text-muted">No ratings yet</span>
-                    {% endif %}
+<div class="col-md-6">
+    <!-- Product Header -->
+    <div class="product-header mb-3">
+        <h1 class="fw-bold">{{ product.name }}</h1>
+        <div class="d-flex align-items-center">
+            {% if average_rating %}
+                <div class="rating me-3">
+                    <span class="stars text-warning">
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= average_rating|floatformat:0 %}
+                                ★
+                            {% else %}
+                                ☆
+                            {% endif %}
+                        {% endfor %}
+                    </span>
+                    <span class="ms-1">{{ average_rating|floatformat:1 }} ({{ reviews.count }} reviews)</span>
                 </div>
+            {% else %}
+                <span class="text-muted">No ratings yet</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stock Status Badge -->
+    <div class="mb-3">
+        {% if product.has_variants %}
+            <span class="badge bg-secondary" id="stock-badge">Select options to see stock</span>
+        {% else %}
+            {% if product.stock > 0 %}
+                <span class="badge bg-success">In Stock ({{ product.stock }} available)</span>
+            {% else %}
+                <span class="badge bg-danger">Out of Stock</span>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- Price Section -->
+    <div class="price-section mb-4 p-3 bg-light rounded-3" id="price-display">
+        <div id="price-output">
+            {% if product.has_variants %}
+                <div class="d-flex align-items-center">
+                    <span class="fs-4 fw-semibold text-muted">Select options to see price</span>
+                </div>
+            {% elif product.display_price %}
+                {% if product.display_discount %}
+                    <div class="d-flex align-items-center flex-wrap">
+                        <span class="fs-2 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
+                        <span class="text-decoration-line-through text-muted me-3 fs-5">₹{{ product.price }}</span>
+                        <span class="badge bg-danger fs-6 py-2">Save {{ product.display_discount }}%</span>
+                    </div>
+                {% else %}
+                    <span class="fs-2 fw-bold">₹{{ product.price }}</span>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Product Description -->
+    <div class="description mb-4">
+        <h5 class="fw-bold">Description</h5>
+        <p class="text-muted">{{ product.description }}</p>
+    </div>
+
+    <!-- Variant Options (Button Pills) -->
+    {% if product.has_variants %}
+<div id="variant-options" class="mb-4">
+    {% for option, values in variant_options.items %}
+    <div class="mb-3">
+        <label class="fw-bold mb-2">{{ option }} <span class="text-danger">*</span></label>
+        <div class="btn-group d-flex flex-wrap gap-2 variant-group" role="group" data-option="{{ option }}">
+            
+            {% if option|lower == 'color' %}
+                {% for value in values %}
+                    <button type="button" class="btn variant-btn color-swatch"
+                            data-option="{{ option }}" data-value="{{ value }}"
+                            style="background-color: {{ value|lower }};"
+                            title="{{ value }}">
+                        <span class="visually-hidden">{{ value }}</span>
+                    </button>
+                {% endfor %}
+            {% else %}
+                {% for value in values %}
+                    <button type="button" class="btn variant-btn text-swatch"
+                            data-option="{{ option }}" data-value="{{ value }}">
+                        {{ value }}
+                    </button>
+                {% endfor %}
+            {% endif %}
+
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+    <!-- Action Buttons -->
+    <div class="action-buttons mb-4">
+        <div class="d-flex flex-column flex-md-row gap-3 align-items-start">
+            <!-- Quantity Selector -->
+            <div class="input-group mb-2" style="width: 150px;">
+                <button class="btn btn-outline-secondary" type="button" onclick="decrementQuantity()">−</button>
+                {{ cart_product_form.quantity }}
+                <button class="btn btn-outline-secondary" type="button" onclick="incrementQuantity()">+</button>
             </div>
 
-            <!-- Stock Status Badge -->
-            <div class="mb-3">
+            <!-- Add to Cart Form -->
+            <form action="{% url 'shop:cart_add' product.id %}" method="post" class="flex-grow-1">
+                {% csrf_token %}
+                <input type="hidden" name="variant_id" id="cart-variant-id">
+                <input type="hidden" name="quantity" id="cart-quantity-input" value="1">
+                
                 {% if product.has_variants %}
-                    <span class="badge bg-secondary" id="stock-badge">Select options to see stock</span>
+                    <button type="submit" id="add-to-cart-btn" class="btn btn-primary btn-lg w-100 mb-2" disabled>
+                        <i class="bi bi-cart-plus"></i> Add to Cart
+                    </button>
                 {% else %}
                     {% if product.stock > 0 %}
-                        <span class="badge bg-success">In Stock ({{ product.stock }} available)</span>
-                    {% else %}
-                        <span class="badge bg-danger">Out of Stock</span>
-                    {% endif %}
-                {% endif %}
-            </div>
-
-            <!-- Price Section -->
-            <div class="price-section mb-4 p-3 bg-light rounded-3" id="price-display">
-                <div id="price-output">
-                    {% if product.has_variants %}
-                        <div class="d-flex align-items-center">
-                            <span class="fs-4 fw-semibold text-muted">Select options to see price</span>
-                        </div>
-                    {% elif product.display_price %}
-                        {% if product.display_discount %}
-                            <div class="d-flex align-items-center flex-wrap">
-                                <span class="fs-2 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
-                                <span class="text-decoration-line-through text-muted me-3 fs-5">₹{{ product.price }}</span>
-                                <span class="badge bg-danger fs-6 py-2">Save {{ product.display_discount }}%</span>
-                            </div>
-                        {% else %}
-                            <span class="fs-2 fw-bold">₹{{ product.price }}</span>
-                        {% endif %}
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Product Description -->
-            <div class="description mb-4">
-                <h5 class="fw-bold">Description</h5>
-                <p class="text-muted">{{ product.description }}</p>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="action-buttons mb-4">
-                <form action="{% url 'shop:cart_add' product.id %}" method="post" class="d-inline-block me-2">
-                    {% csrf_token %}
-                    <input type="hidden" name="variant_id" id="cart-variant-id">
-                    <div class="input-group mb-2" style="width: 150px;">
-                        <button class="btn btn-outline-secondary" type="button" onclick="decrementQuantity()">−</button>
-                        {{ cart_product_form.quantity }}
-                        <button class="btn btn-outline-secondary" type="button" onclick="incrementQuantity()">+</button>
-                    </div>
-
-                    {% if product.has_variants %}
-                        <button type="submit" id="add-to-cart-btn" class="btn btn-primary btn-lg w-100" disabled>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-2">
                             <i class="bi bi-cart-plus"></i> Add to Cart
                         </button>
                     {% else %}
-                        {% if product.stock > 0 %}
-                            <button type="submit" class="btn btn-primary btn-lg w-100">
-                                <i class="bi bi-cart-plus"></i> Add to Cart
-                            </button>
-                        {% else %}
-                            <button type="button" class="btn btn-secondary btn-lg w-100" disabled>
-                                Out of Stock
-                            </button>
-                        {% endif %}
-                    {% endif %}
-                </form>
-
-                <!-- Variant Options (Button Pills) -->
-                <div id="variant-options" class="mb-4">
-                    {% for option, values in variant_options.items %}
-                        <div class="mb-3">
-                            <label class="fw-bold mb-2">{{ option }} <span class="text-danger">*</span></label>
-                            <div class="btn-group d-flex flex-wrap gap-2" role="group" data-option="{{ option }}">
-                                {% for value in values %}
-                                    <button type="button" class="btn btn-outline-primary variant-btn position-relative"
-                                        data-option="{{ option }}" data-value="{{ value }}">
-                                    {{ value }}
-                                </button>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-
-                <!-- Variant result area -->
-                <div id="variant-info" class="mt-3 p-3 bg-light rounded text-muted">
-                    <em>Select variant options to see price and stock.</em>
-                </div>
-
-                <!-- Buy Now Form -->
-                {% if product.has_variants %}
-                    <form id="buyNowForm" method="POST" action="{% url 'shop:buy_now' product.id %}" class="d-grid gap-2 mt-3">
-                        {% csrf_token %}
-                        <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
-                        <input type="hidden" id="buy-variant-id" name="variant_id" value="">
-                        <button type="submit" id="buy-now-btn" class="btn btn-success w-100" disabled>
-                            Buy Now
-                        </button>
-                    </form>
-                {% else %}
-                    {% if product.stock > 0 %}
-                        <form id="buyNowForm" method="POST" action="{% url 'shop:buy_now' product.id %}" class="d-grid gap-2 mt-3">
-                            {% csrf_token %}
-                            <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
-                            <input type="hidden" name="variant_id" value="">
-                            <button type="submit" id="buy-now-btn" class="btn btn-success w-100">
-                                Buy Now
-                            </button>
-                        </form>
-                    {% else %}
-                        <button class="btn btn-secondary w-100 mt-3" disabled>
+                        <button type="button" class="btn btn-secondary btn-lg w-100 mb-2" disabled>
                             Out of Stock
                         </button>
                     {% endif %}
                 {% endif %}
+            </form>
 
-                <!-- Wishlist + Share -->
-                <div class="d-flex gap-2 mt-2">
-                    <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1 wishlist-form">
+            <!-- Buy Now Form -->
+            {% if product.has_variants %}
+                <form id="buyNowForm" method="POST" action="{% url 'shop:buy_now' product.id %}" class="flex-grow-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
+                    <input type="hidden" id="buy-variant-id" name="variant_id" value="">
+                    <button type="submit" id="buy-now-btn" class="btn btn-success btn-lg w-100 mb-2" disabled>
+                        Buy Now
+                    </button>
+                </form>
+            {% else %}
+                {% if product.stock > 0 %}
+                    <form id="buyNowForm" method="POST" action="{% url 'shop:buy_now' product.id %}" class="flex-grow-1">
                         {% csrf_token %}
-                        
-                        <input type="hidden" name="variant_id" id="wishlist-variant-id" value="{{ default_variant.id | default:'' }}">
-                        
-                        <button type="submit" class="btn btn-outline-danger btn-lg w-100">
-                            <i class="bi bi-heart"></i> Wishlist
+                        <input type="hidden" name="quantity" id="buyNowQuantity" value="1">
+                        <input type="hidden" name="variant_id" value="">
+                        <button type="submit" id="buy-now-btn" class="btn btn-success btn-lg w-100 mb-2">
+                            Buy Now
                         </button>
                     </form>
-
-                    <button class="btn btn-outline-dark btn-lg" onclick="toggleShareIcons()">
-                        <i class="bi bi-share"></i>
+                {% else %}
+                    <button class="btn btn-secondary btn-lg w-100 mb-2" disabled>
+                        Out of Stock
                     </button>
-                </div>
+                {% endif %}
+            {% endif %}
+        </div>
 
-                <!-- Share Icons -->
-                <div id="share-icons" class="mt-3 p-3 bg-light rounded d-none">
-                    <h6 class="mb-2">Share this product:</h6>
-                    <div class="d-flex gap-2">
-                        <a href="https://wa.me/?text=Check%20out%20this%20product:%20{{ product.name }}%20{{ request.build_absolute_uri }}" 
-                        target="_blank" class="btn btn-success">
-                            <i class="bi bi-whatsapp"></i> WhatsApp
-                        </a>
-                        <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}" 
-                        target="_blank" class="btn btn-primary">
-                            <i class="bi bi-facebook"></i> Facebook
-                        </a>
-                        <a href="https://twitter.com/intent/tweet?text=Check%20out%20{{ product.name }}&url={{ request.build_absolute_uri }}" 
-                        target="_blank" class="btn btn-dark">
-                            <i class="bi bi-twitter-x"></i> Twitter
-                        </a>
-                    </div>
-                </div>
-            </div>
+        <!-- Wishlist + Share -->
+        <div class="d-flex gap-2 mt-3">
+            <form action="{% url 'accounts:add_to_wishlist' product.id %}" method="post" class="flex-grow-1 wishlist-form">
+                {% csrf_token %}
+                
+                <input type="hidden" name="variant_id" id="wishlist-variant-id" value="{{ default_variant.id | default:'' }}">
+                
+                <button type="submit" class="btn btn-outline-danger btn-lg w-100">
+                    <i class="bi bi-heart"></i> Wishlist
+                </button>
+            </form>
 
-            <!-- Product Highlights -->
-            <div class="highlights mb-4">
-                <h5 class="fw-bold">Highlights</h5>
-                <ul class="list-unstyled">
-                    <!-- Add product highlights here -->
-                </ul>
+            <button class="btn btn-outline-dark btn-lg" onclick="toggleShareIcons()">
+                <i class="bi bi-share"></i>
+            </button>
+        </div>
+
+        <!-- Share Icons -->
+        <div id="share-icons" class="mt-3 p-3 bg-light rounded d-none">
+            <h6 class="mb-2">Share this product:</h6>
+            <div class="d-flex gap-2">
+                <a href="https://wa.me/?text=Check%20out%20this%20product:%20{{ product.name }}%20{{ request.build_absolute_uri }}" 
+                target="_blank" class="btn btn-success">
+                    <i class="bi bi-whatsapp"></i> WhatsApp
+                </a>
+                <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}" 
+                target="_blank" class="btn btn-primary">
+                    <i class="bi bi-facebook"></i> Facebook
+                </a>
+                <a href="https://twitter.com/intent/tweet?text=Check%20out%20{{ product.name }}&url={{ request.build_absolute_uri }}" 
+                target="_blank" class="btn btn-dark">
+                    <i class="bi bi-twitter-x"></i> Twitter
+                </a>
             </div>
         </div>
     </div>
+
+    <!-- Product Highlights -->
+    <div class="highlights mb-4">
+        <h5 class="fw-bold">Highlights</h5>
+        <ul class="list-unstyled">
+            <!-- Add product highlights here -->
+        </ul>
+    </div>
+</div>       
 
     <!-- Similar Products -->
     <div class="similar-products mt-5 pt-4 border-top">
@@ -415,408 +430,311 @@
 </div>
 
 <script>
-const selectedVariants = {};
-const allVariants = JSON.parse('{{ variant_data_json|escapejs }}');
-const addToCartBtn = document.getElementById('add-to-cart-btn');
-const buyNowBtn = document.getElementById('buy-now-btn');
-const cartVariantInput = document.getElementById('cart-variant-id');
-const buyVariantInput = document.getElementById('buy-variant-id');
-const priceDisplay = document.getElementById('price-display');
-const stockBadge = document.getElementById('stock-badge');
-let variantStock = 0;
-const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-const wishlistVariantInput = document.getElementById('wishlist-variant-id');
+    // These functions are now GLOBAL, so onclick="" can find them.
+    function changeMainImage(thumbnail) {
+        document.getElementById('main-product-image').src = thumbnail.src;
+        document.querySelectorAll('.thumbnail-item').forEach(item => item.classList.remove('active'));
+        thumbnail.classList.add('active');
+    }
 
-// Utility to normalize strings
-function normalize(str) {
-    return str.trim().toLowerCase();
-}
+    function incrementQuantity() {
+        const visibleQuantityInput = document.querySelector('input[id="id_quantity"]');
+        const hiddenCartInput = document.getElementById('cart-quantity-input');
+        const maxStock = parseInt(visibleQuantityInput.getAttribute('max')) || 999;
+        let currentValue = parseInt(visibleQuantityInput.value);
+        if (currentValue < maxStock) {
+            visibleQuantityInput.value = currentValue + 1;
+            // Sync the hidden input
+            if (hiddenCartInput) {
+                hiddenCartInput.value = visibleQuantityInput.value;
+            }
+        }
+    }
 
-function toggleButtons(enabled) {
-    if (addToCartBtn) addToCartBtn.disabled = !enabled;
-    if (buyNowBtn) buyNowBtn.disabled = !enabled;
-}
-toggleButtons(false);
+    function decrementQuantity() {
+        const visibleQuantityInput = document.querySelector('input[id="id_quantity"]');
+        const hiddenCartInput = document.getElementById('cart-quantity-input');
+        let currentValue = parseInt(visibleQuantityInput.value);
+        if (currentValue > 1) {
+            visibleQuantityInput.value = currentValue - 1;
+            // Sync the hidden input
+            if (hiddenCartInput) {
+                hiddenCartInput.value = visibleQuantityInput.value;
+            }
+        }
+    }
 
-// Variant buttons click handler
-document.querySelectorAll('.variant-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        if (btn.disabled) return; // prevent clicking disabled buttons
+    function toggleShareIcons() {
+        document.getElementById('share-icons').classList.toggle('d-none');
+    }
 
-        const option = btn.dataset.option;
-        const value = btn.dataset.value;
 
-        // Remove active classes from siblings
-        document.querySelectorAll(`.variant-btn[data-option="${option}"]`).forEach(b => {
-            b.classList.remove('active', 'btn-primary');
-            b.classList.add('btn-outline-secondary');
-        });
+    // This runs after the page is fully loaded
+    document.addEventListener("DOMContentLoaded", () => {
+        // All variant-specific logic is safely inside here
+        if (!document.getElementById('variant-options')) return; 
 
-        // Mark clicked button active
-        btn.classList.add('active', 'btn-primary');
-        btn.classList.remove('btn-outline-secondary');
+        const variantOptionGroups = document.querySelectorAll('.btn-group[data-option]');
+        const addToCartBtn = document.getElementById('add-to-cart-btn');
+        const buyNowBtn = document.getElementById('buy-now-btn');
+        const cartVariantInput = document.getElementById('cart-variant-id');
+        const buyVariantInput = document.getElementById('buy-variant-id');
+        const wishlistVariantInput = document.getElementById('wishlist-variant-id');
+        const priceDisplay = document.getElementById('price-display');
+        const stockBadge = document.getElementById('stock-badge');
+        const quantityInput = document.querySelector('input[name="quantity"]');
+        const buyNowForm = document.getElementById('buyNowForm');
+        
+        const allVariants = JSON.parse('{{ variant_data_json|escapejs }}');
+        const productId = {{ product.id }};
+        const csrfToken = '{{ csrf_token }}';
+        const originalPriceHTML = priceDisplay.innerHTML;
+        const TOTAL_OPTIONS = variantOptionGroups.length;
 
-        // Update selectedVariants
-        selectedVariants[option] = value;
+        let selectedOptions = {};
+        let fetchTimeout;
 
-        const totalOptions = document.querySelectorAll('.btn-group[data-option]').length;
-        const infoDiv = document.getElementById('variant-info');
-
-        if (Object.keys(selectedVariants).length === totalOptions) {
-            infoDiv.innerHTML = `<em>Loading variant info...</em>`;
-            fetchVariantDataDebounced();
-        } else {
-            toggleButtons(false);
-            if (cartVariantInput) cartVariantInput.value = '';
-            if (buyVariantInput) buyVariantInput.value = '';
-            infoDiv.innerHTML = `<em>Select variant options to see price and stock.</em>`;
+        function resetUIDisplays() {
+            priceDisplay.innerHTML = originalPriceHTML;
             if (stockBadge) {
                 stockBadge.className = 'badge bg-secondary';
                 stockBadge.textContent = 'Select options to see stock';
             }
+            toggleActionButtons(false);
+            if (cartVariantInput) cartVariantInput.value = '';
+            if (buyVariantInput) buyVariantInput.value = '';
+            if (wishlistVariantInput) wishlistVariantInput.value = '';
+            if (quantityInput) {
+                quantityInput.value = 1;
+                quantityInput.removeAttribute('max');
+            }
         }
 
-        updateVariantAvailability();
-    });
-});
+        function toggleActionButtons(enabled, inStock = false) {
+            if (addToCartBtn) {
+                addToCartBtn.disabled = !enabled;
+                addToCartBtn.innerHTML = inStock ? '<i class="bi bi-cart-plus"></i> Add to Cart' : 'Out of Stock';
+            }
+            if (buyNowBtn) {
+                buyNowBtn.disabled = !enabled;
+                buyNowBtn.textContent = inStock ? 'Buy Now' : 'Out of Stock';
+            }
+        }
 
-// Debounce fetch calls to avoid flooding server
-let fetchTimeout;
-function fetchVariantDataDebounced() {
-    clearTimeout(fetchTimeout);
-    fetchTimeout = setTimeout(fetchVariantData, 200);
-}
+        function fetchVariantData() {
+            if (Object.keys(selectedOptions).length !== TOTAL_OPTIONS) return;
+            fetch("{% url 'shop:get_matching_variant' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+                body: JSON.stringify({ product_id: productId, selected_values: Object.values(selectedOptions) })
+            })
+            .then(response => response.ok ? response.json() : Promise.reject('Network error'))
+            .then(data => { if (data.success) { updateUIData(data); } else { resetUIDisplays(); } })
+            .catch(error => { console.error('Error fetching variant:', error); resetUIDisplays(); });
+        }
 
-// Fetch variant info from server
-function fetchVariantData() {
-    const infoDiv = document.getElementById('variant-info');
-    infoDiv.innerHTML = `<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading variant...</div>`;
-
-    fetch("{% url 'shop:get_matching_variant' %}", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrfToken
-        },
-        body: JSON.stringify({
-            product_id: {{ product.id }},
-            selected_values: Object.values(selectedVariants)
-        })
-    })
-    .then(response => {
-        if (!response.ok) throw new Error('Network response was not ok');
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            variantStock = data.stock;
-
-            // Update stock badge
+        function updateUIData(data) {
             if (stockBadge) {
-                if (data.stock > 0) {
-                    stockBadge.className = 'badge bg-success';
-                    stockBadge.textContent = `In Stock `;
-                } else {
-                    stockBadge.className = 'badge bg-danger';
-                    stockBadge.textContent = 'Out of Stock';
+                stockBadge.className = data.stock > 0 ? 'badge bg-success' : 'badge bg-danger';
+                stockBadge.textContent = data.stock > 0 ? `In Stock (${data.stock} available)` : 'Out of Stock';
+            }
+            if (quantityInput) {
+                quantityInput.setAttribute('max', data.stock);
+                if (parseInt(quantityInput.value) > data.stock || data.stock === 0) {
+                    quantityInput.value = data.stock > 0 ? 1 : 1;
                 }
             }
-
-            infoDiv.innerHTML = `
-                <div class="variant-details">
-                    ${data.image ? `<img src="${data.image}" class="variant-image mb-2" width="150">` : ''}
-                    <div class="variant-meta">
-                        <div><strong>SKU:</strong> ${data.sku}</div>
-                        <div><strong>Stock:</strong> ${data.stock} available</div>
-                    </div>
-                </div>
-            `;
-
+            const discountPercent = data.discount_price ? Math.round((1 - data.discount_price / data.price) * 100) : 0;
+            let priceHTML = '';
+            if (data.discount_price) {
+                priceHTML = `<div class="d-flex align-items-center flex-wrap"><span class="fs-2 fw-bold text-danger me-3">₹${parseFloat(data.discount_price).toFixed(2)}</span><span class="text-decoration-line-through text-muted me-3 fs-5">₹${parseFloat(data.price).toFixed(2)}</span>${discountPercent > 0 ? `<span class="badge bg-danger fs-6 py-2">Save ${discountPercent}%</span>` : ''}</div>`;
+            } else {
+                priceHTML = `<span class="fs-2 fw-bold">₹${parseFloat(data.price).toFixed(2)}</span>`;
+            }
+            priceDisplay.innerHTML = priceHTML;
+            if (data.image) { document.getElementById('main-product-image').src = data.image; }
             const variantId = data.variant_id || '';
             if (cartVariantInput) cartVariantInput.value = variantId;
             if (buyVariantInput) buyVariantInput.value = variantId;
             if (wishlistVariantInput) wishlistVariantInput.value = variantId;
-
-            const discountPercent = data.discount_price ? Math.round((1 - (data.discount_price / data.price)) * 100) : 0;
-            if (data.discount_price) {
-                priceDisplay.innerHTML = `
-                    <div class="price-container">
-                        <div class="d-flex align-items-center flex-wrap">
-                            <span class="current-price fs-3 fw-bold text-danger me-3">₹${parseFloat(data.discount_price).toFixed(2)}</span>
-                            <span class="original-price text-decoration-line-through text-muted me-3">₹${parseFloat(data.price).toFixed(2)}</span>
-                            ${discountPercent > 0 ? `<span class="discount-badge badge bg-danger">Save ${discountPercent}%</span>` : ''}
-                        </div>
-                    </div>
-                `;
-            } else {
-                priceDisplay.innerHTML = `
-                    <div class="price-container">
-                        <span class="current-price fs-3 fw-bold">₹${parseFloat(data.price).toFixed(2)}</span>
-                    </div>
-                `;
-            }
-
-            if (data.image) {
-                const mainImg = document.getElementById('main-product-image');
-                mainImg.src = data.image;
-                document.querySelectorAll('.thumbnail-item').forEach(item => {
-                    item.classList.remove('active');
-                    if (item.src === data.image) item.classList.add('active');
+            toggleActionButtons(data.stock > 0, data.stock > 0);
+        }
+        
+        function updateVariantAvailability() {
+            variantOptionGroups.forEach((group, index) => {
+                group.querySelectorAll('.variant-btn').forEach(btn => {
+                    const btnValue = btn.dataset.value;
+                    let tempSelection = {};
+                    for (let i = 0; i < index; i++) {
+                        const prevOptionName = variantOptionGroups[i].dataset.option;
+                        if(selectedOptions[prevOptionName]) { tempSelection[prevOptionName] = selectedOptions[prevOptionName]; }
+                    }
+                    tempSelection[group.dataset.option] = btnValue;
+                    const tempValues = Object.values(tempSelection);
+                    const isPossible = allVariants.some(variant => tempValues.every(val => variant.values.includes(val.toLowerCase())));
+                    btn.disabled = !isPossible;
+                    btn.classList.toggle('disabled', !isPossible);
                 });
-            }
-
-            toggleButtons(data.stock > 0);
-
-            updateVariantAvailability();
-        } else {
-            infoDiv.innerHTML = `
-                <div class="alert alert-warning">${data.message || "Selected combination not available"}</div>
-            `;
-            toggleButtons(false);
-            if (cartVariantInput) cartVariantInput.value = '';
-            if (buyVariantInput) buyVariantInput.value = '';
-            if (wishlistVariantInput) wishlistVariantInput.value = '';
-            
-            if (stockBadge) {
-                stockBadge.className = 'badge bg-danger';
-                stockBadge.textContent = 'Out of Stock';
-            }
-
-            {% if product.discount_price %}
-                priceDisplay.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="fs-3 fw-bold text-danger me-3">₹{{ product.discount_price }}</span>
-                        <span class="text-decoration-line-through text-muted me-3">₹{{ product.price }}</span>
-                        <span class="badge bg-danger">Save {{ product.get_discount_percentage }}%</span>
-                    </div>
-                `;
-            {% else %}
-                priceDisplay.innerHTML = `<span class="fs-3 fw-bold">₹{{ product.price }}</span>`;
-            {% endif %}
-        }
-    })
-    .catch(error => {
-        console.error('Error fetching variant:', error);
-        infoDiv.innerHTML = `
-            <div class="alert alert-danger">Error loading variant information. Please try again.</div>
-        `;
-        toggleButtons(false);
-    });
-}
-
-// Update variant availability by enabling/disabling buttons based on current selection
-function updateVariantAvailability() {
-    const selectedOptions = { ...selectedVariants };
-    const optionGroups = document.querySelectorAll('.btn-group[data-option]');
-    const firstOptionGroup = optionGroups[0]; // Assuming first group is Volume
-
-    optionGroups.forEach(group => {
-        const optionName = group.dataset.option;
-
-        if (group === firstOptionGroup) {
-            // For first option group (Volume), never disable any button
-            group.querySelectorAll('.variant-btn').forEach(btn => {
-                btn.disabled = false;
-                btn.classList.remove('disabled', 'btn-light');
-                if (!btn.classList.contains('active')) {
-                    btn.classList.add('btn-outline-secondary');
-                }
             });
-            return; // skip further disabling logic for first group
         }
 
-        // For other option groups (Color), disable buttons based on variant availability
-        group.querySelectorAll('.variant-btn').forEach(btn => {
-            const btnValue = btn.dataset.value;
-            let possible = false;
-
-            // Remove current option from selection when testing its buttons
-            const otherSelectedOptions = { ...selectedOptions };
-            delete otherSelectedOptions[optionName];
-
-            // Build temp selection with candidate button value for this option group + other options
-            const tempSelection = { ...otherSelectedOptions, [optionName]: btnValue };
-
-            for (const variant of allVariants) {
-                if (variant.stock <= 0) continue;
-
-                const values = variant.values;
-                let match = true;
-
-                for (const [opt, val] of Object.entries(tempSelection)) {
-                    if (!values.some(v => normalize(v) === normalize(val))) {
-                        match = false;
-                        break;
-                    }
-                }
-
-                if (match) {
-                    possible = true;
-                    break;
-                }
-            }
-
-            if (!possible) {
-                btn.disabled = true;
-                btn.classList.add('disabled', 'btn-light');
-                btn.classList.remove('btn-outline-secondary', 'btn-primary');
-
-                // If this button is selected, deselect it
-                if (selectedVariants[optionName] === btnValue) {
-                    delete selectedVariants[optionName];
-                    const infoDiv = document.getElementById('variant-info');
-                    infoDiv.innerHTML = `<em>Select variant options to see price and stock.</em>`;
-                    toggleButtons(false);
-                    if (cartVariantInput) cartVariantInput.value = '';
-                    if (buyVariantInput) buyVariantInput.value = '';
-                    if (stockBadge) {
-                        stockBadge.className = 'badge bg-secondary';
-                        stockBadge.textContent = 'Select options to see stock';
-                    }
-                }
+        function handleVariantClick(event) {
+            const clickedBtn = event.currentTarget;
+            if (clickedBtn.disabled) return;
+            const optionName = clickedBtn.dataset.option;
+            const isAlreadyActive = clickedBtn.classList.contains('active');
+            clickedBtn.closest('.btn-group').querySelectorAll('.variant-btn').forEach(sibling => sibling.classList.remove('active'));
+            if (!isAlreadyActive) {
+                clickedBtn.classList.add('active');
+                selectedOptions[optionName] = clickedBtn.dataset.value;
             } else {
-                btn.disabled = false;
-                btn.classList.remove('disabled', 'btn-light');
-                if (!btn.classList.contains('active')) {
-                    btn.classList.add('btn-outline-secondary');
-                }
+                delete selectedOptions[optionName];
             }
-        });
-    });
-}
-
-// Quantity increment/decrement controls
-function incrementQuantity() {
-    const quantityInput = document.querySelector('input[name="quantity"]');
-    let newQuantity = parseInt(quantityInput.value) + 1;
-    if (variantStock && newQuantity > variantStock) {
-        alert(`Only ${variantStock} available in stock!`);
-        return;
-    }
-    quantityInput.value = newQuantity;
-}
-
-function decrementQuantity() {
-    const quantityInput = document.querySelector('input[name="quantity"]');
-    if (parseInt(quantityInput.value) > 1) {
-        quantityInput.value = parseInt(quantityInput.value) - 1;
-    }
-}
-
-// Safely attach buyNowForm submit handler
-const buyNowForm = document.getElementById('buyNowForm');
-if (buyNowForm) {
-    buyNowForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-
-        const quantityInput = document.querySelector('input[name="quantity"]');
-        const buyNowQuantity = document.getElementById('buyNowQuantity');
-
-        let quantity = 1;
-        if (quantityInput) {
-            quantity = parseInt(quantityInput.value) || 1;
-            if (variantStock && quantity > variantStock) {
-                alert(`Only ${variantStock} available in stock!`);
-                return;
+            const clickedOptionIndex = Array.from(variantOptionGroups).findIndex(g => g.dataset.option === optionName);
+            for (let i = clickedOptionIndex + 1; i < TOTAL_OPTIONS; i++) {
+                const groupToClear = variantOptionGroups[i];
+                delete selectedOptions[groupToClear.dataset.option];
+                groupToClear.querySelectorAll('.variant-btn').forEach(btn => btn.classList.remove('active'));
+            }
+            updateVariantAvailability();
+            if (Object.keys(selectedOptions).length === TOTAL_OPTIONS) {
+                clearTimeout(fetchTimeout);
+                fetchTimeout = setTimeout(fetchVariantData, 200);
+            } else {
+                resetUIDisplays();
             }
         }
 
-        buyNowQuantity.value = quantity;
-        this.submit();
-    });
-}
-
-// Initialize default variant selections and update UI without triggering multiple fetches
-const defaultVariantValues = [
-  {% for value in default_variant.values.all %}
-    "{{ value.value }}",
-  {% endfor %}
-];
-
-window.addEventListener("DOMContentLoaded", () => {
-    // Clear any previous selection classes first (optional)
-    document.querySelectorAll('.variant-btn').forEach(btn => {
-        btn.classList.remove('active', 'btn-primary');
-        btn.classList.add('btn-outline-secondary');
-    });
-
-    // Set selectedVariants and mark buttons active manually
-    defaultVariantValues.forEach(val => {
-        const btn = document.querySelector(`.variant-btn[data-value="${val}"]`);
-        if (btn) {
-            btn.classList.add('active', 'btn-primary');
-            btn.classList.remove('btn-outline-secondary');
-            selectedVariants[btn.dataset.option] = val;
+        // --- Initial Setup ---
+        document.querySelectorAll('.variant-btn').forEach(btn => btn.addEventListener('click', handleVariantClick));
+        
+        if (buyNowForm) {
+            buyNowForm.addEventListener('submit', function (e) {
+                const buyNowQuantity = document.getElementById('buyNowQuantity');
+                if (quantityInput && buyNowQuantity) { buyNowQuantity.value = quantityInput.value; }
+            });
+        }
+        
+        // ** THIS FIXES THE DEFAULT VARIANT **
+        const defaultVariantValues = [{% for value in default_variant.values.all %}"{{ value.value }}",{% endfor %}];
+        if (defaultVariantValues.length > 0) {
+            defaultVariantValues.forEach(val => {
+                const btn = document.querySelector(`.variant-btn[data-value="${val}"]`);
+                if (btn) btn.click();
+            });
+        } else {
+            updateVariantAvailability();
         }
     });
-
-    // Fetch variant data once after all defaults are set
-    fetchVariantData();
-
-    // Update variant availability based on defaults
-    updateVariantAvailability();
-});
 </script>
 
+
+
+
 <style>
-.variant-btn.active {
-    border-color: #0d6efd;
-    background-color: #0d6efd;
-    color: #fff;
+/* --- Improved Action Button Styles --- */
+.action-buttons .btn-lg {
+    padding: 0.6rem 1rem; /* Makes buttons slightly less tall */
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
+.action-buttons .btn-lg:hover:not(:disabled) {
+    transform: translateY(-2px); /* Lifts the button on hover */
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.action-buttons .btn-lg:active:not(:disabled) {
+    transform: translateY(0); /* Pushes button back down on click */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+/* --- Thumbnail and Image Styles --- */
 .thumbnail-item.active {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
-#main-product-image.zoomed {
-    transform: scale(1.5);
-    cursor: zoom-out;
+/* --- Modern Variant Swatch Styles --- */
+.variant-btn {
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    min-width: 50px;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease-in-out;
+    position: relative;
+    background-color: #fff;
+    color: #333;
 }
 
-/* Rating stars */
-.rating-input {
-    display: flex;
-    direction: rtl;
-    unicode-bidi: bidi-override;
-}
-.rating-input input {
-    display: none;
-}
-.rating-input label {
-    font-size: 2rem;
-    color: #ddd;
-    cursor: pointer;
-}
-.rating-input input:checked ~ label,
-.rating-input label:hover,
-.rating-input label:hover ~ label {
-    color: #ffc107;
+.variant-btn:hover {
+    border-color: #999;
 }
 
-/* Card hover effect */
-.product-card:hover {
-    transform: translateY(-5px);
-    transition: transform 0.3s ease;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+.variant-btn.active {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+    color: #0d6efd;
+    font-weight: bold;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
 }
 
-/* Review modal stars */
-.star-label {
-    cursor: pointer;
-    font-size: 1.5rem;
-    color: #ddd;
+.color-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    padding: 0;
+    border-width: 3px;
+    border-color: #fff;
+    box-shadow: 0 0 0 1px #e0e0e0;
 }
-.star-label:hover,
-.star-label:hover ~ .star-label,
-input[type="radio"]:checked ~ .star-label {
-    color: #ffc107;
+
+.color-swatch.active::after {
+    content: '✔';
+    color: white;
+    text-shadow: 0px 0px 3px rgba(0, 0, 0, 0.7);
+    font-size: 1.2rem;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
+
 .variant-btn.disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
+    background-color: #f8f9fa;
+    border-color: #e0e0e0;
+    box-shadow: none;
+    position: relative; /* Needed for the line-through */
 }
+
+/* Adds a line-through effect for disabled buttons */
+.variant-btn.disabled::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -5%;
+    width: 110%;
+    height: 1.5px;
+    background-color: #999;
+    transform: rotate(-15deg);
+}
+
+.color-swatch.disabled::before {
+    transform: rotate(45deg); /* Adjust angle for circles */
+}
+
+/* --- Other Styles --- */
+.rating-input { display: flex; direction: rtl; unicode-bidi: bidi-override; }
+.rating-input input { display: none; }
+.rating-input label { font-size: 2rem; color: #ddd; cursor: pointer; }
+.rating-input input:checked ~ label, .rating-input label:hover, .rating-input label:hover ~ label { color: #ffc107; }
+.product-card:hover { transform: translateY(-5px); transition: transform 0.3s ease; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); }
+.star-label { cursor: pointer; font-size: 1.5rem; color: #ddd; }
+.star-label:hover, .star-label:hover ~ .star-label, input[type="radio"]:checked ~ .star-label { color: #ffc107; }
 </style>
 
 {% endblock %}

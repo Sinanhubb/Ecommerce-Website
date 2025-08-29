@@ -7,7 +7,10 @@ from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm,Rev
 from shop.models import Product, ProductVariant, Category,Review
 from accounts.models import Order, OrderItem, PromoCode, Address
 from django.contrib.auth.models import User
-from django.db.models import Sum
+from django.db.models.functions import Coalesce
+from django.db.models import Count, Sum, Value
+from django.db.models.fields import DecimalField
+
 
 # -------------------------
 # Dashboard Home
@@ -25,6 +28,7 @@ def dashboard_home(request):
 
     latest_product = Product.objects.order_by("-id").first()
     orders = Order.objects.all().order_by("-created_at")[:5]
+    
     promocodes = PromoCode.objects.all().order_by('-id')
     latest_review = Review.objects.order_by('-created_at').first()
 
@@ -35,6 +39,7 @@ def dashboard_home(request):
         "variants": ProductVariant.objects.all(),
         "latest_product": latest_product,
         "orders": orders,
+        "order_count": Order.objects.count(),
         "promocodes": promocodes,
         "reviews": Review.objects.all(), 
         "latest_review": latest_review, 
@@ -256,27 +261,16 @@ def category_delete(request, pk):
 
 
 def customer_list(request):
-    customers = User.objects.all().prefetch_related('order_set', 'addresses')
-
-    customer_data = []
-    for customer in customers:
-        total_spent = customer.order_set.aggregate(total=Sum('total_price'))['total'] or 0
-
-        customer_data.append({
-            'id': customer.id,
-            'username': customer.username,
-            'email': customer.email,
-            'date_joined': customer.date_joined,
-            'is_active': customer.is_active,
-            'orders_count': customer.order_set.count(),
-            'addresses_count': customer.addresses.count(),
-            'total_spent': total_spent,
-        })
+    
+    # This single, powerful query annotates each user with the required data
+    customers_list = User.objects.annotate(
+        orders_count=Count('order'),
+        total_spent=Coalesce(Sum('order__total_price'), Value(0, output_field=DecimalField()))
+    ).order_by('-date_joined')
 
     return render(request, 'dashboard/customer_list.html', {
-        'customers': customer_data,
+        'customers': customers_list,
     })
-
 
 
 # dashboard/views.py

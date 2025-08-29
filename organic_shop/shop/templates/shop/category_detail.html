@@ -243,7 +243,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <style>
+   
 .wishlist-form {
   position: relative;
   z-index: 5;   /* bring heart above overlay */
@@ -253,6 +257,9 @@ document.addEventListener('DOMContentLoaded', function() {
   z-index: 0 !important;  /* push overlay behind */
 }
 
+    /* Wishlist active */
+    .btn-heart.text-danger i { color: #dc3545; }
 </style>
-
 {% endblock %}
+
+
