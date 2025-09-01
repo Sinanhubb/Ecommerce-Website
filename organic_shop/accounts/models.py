@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from shop.models import Product,ProductVariant
 from django.utils import timezone
+from decimal import Decimal
 
 class Wishlist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -138,11 +139,12 @@ class Order(models.Model):
     @property
     def get_subtotal(self):
         return sum(item.total for item in self.items.all())
+   
     @property
     def get_discount_amount(self):
         if self.promo_code:
-            return (self.promo_code.discount_percentage / 100) * self.get_subtotal
-        return 0
+            return (Decimal(self.promo_code.discount_percentage) / Decimal(100)) * self.get_subtotal
+        return Decimal('0.00')
 
 
 # Order Item
