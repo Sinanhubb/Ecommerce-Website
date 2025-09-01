@@ -63,32 +63,54 @@ def index(request):
 def product_detail(request, slug):
     # This single, efficient query fetches the product AND all related data we need.
     product = get_object_or_404(
-        Product.objects.prefetch_related(
+        Product.objects.annotate(
+            # Calculate average rating directly in the database
+            average_rating=Avg('reviews__rating')
+        ).prefetch_related(
             # Prefetch all variants AND their nested values/options in one go
             Prefetch(
                 'variants',
                 queryset=ProductVariant.objects.order_by('-stock').prefetch_related('values__option')
             ),
-            'images',        # Prefetch all additional product images
-            'reviews__user'  # Prefetch all reviews and the user who wrote them
+            'images', # Prefetch all additional product images
+            # Prefetch and pre-sort reviews in the database
+            Prefetch(
+                'reviews',
+                queryset=Review.objects.order_by('-created_at').select_related('user')
+            )
         ),
         slug=slug,
         available=True
     )
 
-    # Get the default variant from the data we already fetched (NO new query)
+    # --- REVIEW FORM HANDLING ---
+    if request.method == 'POST' and request.user.is_authenticated:
+        review_form = ReviewForm(request.POST)
+        if review_form.is_valid():
+            new_review = review_form.save(commit=False)
+            new_review.product = product
+            new_review.user = request.user
+            new_review.save()
+            messages.success(request, 'Your review has been submitted!')
+            return redirect('shop:product_detail', slug=product.slug)
+    else:
+        review_form = ReviewForm()
+
+    # Get data from our efficient query
     all_product_variants = list(product.variants.all())
     default_variant = all_product_variants[0] if all_product_variants else None
+    reviews = product.reviews.all()
+    average_rating = product.average_rating or 0
 
-    # Safely update view count using F()
+    # Safely update view count
     product.views = F('views') + 1
     product.save(update_fields=['views'])
-    product.refresh_from_db(fields=['views']) # Gets the updated value from the DB
+    product.refresh_from_db(fields=['views'])
 
-    # --- The rest of the view logic is now much cleaner and faster ---
+    # --- The rest of your view logic ---
     cart_product_form = CartAddProductForm()
 
-    # SIMILAR PRODUCTS (your existing optimized code is great)
+    # SIMILAR PRODUCTS
     default_variant_prefetch = Prefetch(
         'variants',
         queryset=ProductVariant.objects.order_by('-stock'),
@@ -103,11 +125,7 @@ def product_detail(request, slug):
         if sp.default_variant_list:
             similar_variants.append(sp.default_variant_list[0])
 
-    # REVIEWS (No new DB query here)
-    reviews = sorted(product.reviews.all(), key=lambda r: r.created_at, reverse=True)
-    average_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
-
-    # RECENTLY VIEWED (Session logic remains the same)
+    # RECENTLY VIEWED
     recently_viewed_variant_ids = request.session.get('recently_viewed_variants', [])
     if default_variant and default_variant.id in recently_viewed_variant_ids:
         recently_viewed_variant_ids.remove(default_variant.id)
@@ -117,22 +135,14 @@ def product_detail(request, slug):
 
     recently_viewed_queryset = ProductVariant.objects.select_related('product').filter(
         id__in=recently_viewed_variant_ids
-    )
-    if default_variant:
-        recently_viewed_queryset = recently_viewed_queryset.exclude(id=default_variant.id)
+    ).exclude(id=default_variant.id if default_variant else None)
 
     recently_viewed = sorted(
         recently_viewed_queryset,
         key=lambda x: recently_viewed_variant_ids.index(x.id)
     )
 
-    # REVIEW FORM (Logic remains the same)
-    review_form = ReviewForm()
-    if request.method == 'POST' and request.user.is_authenticated:
-        # Handle form post
-        pass
-
-    # VARIANT MAP & JSON (No new DB queries here, runs on prefetched data)
+    # VARIANT MAP & JSON
     option_map = {}
     for variant in all_product_variants:
         for value in variant.values.all():
@@ -159,7 +169,6 @@ def product_detail(request, slug):
         'cart_product_form': cart_product_form,
         'review_form': review_form,
         'recently_viewed_variants': recently_viewed,
-        # Make sure all your other necessary context variables are here
     }
     return render(request, 'shop/product_detail.html', context)
 
@@ -259,9 +268,6 @@ def cart_detail(request):
     cart = get_or_create_cart(request)
     
     return render(request, 'shop/cart_detail.html', {'cart': cart})
-
-    
-
 
 
 def get_or_create_cart(request):

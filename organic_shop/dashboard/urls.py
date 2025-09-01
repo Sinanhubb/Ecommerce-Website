@@ -13,9 +13,9 @@ urlpatterns = [
     path("product/<int:pk>/delete/", views.product_delete, name="product_delete"),
 
    path('variant/', views.variant_list, name='variant_list'),
-path("variant/add/", views.variant_form, name="variant_add"),
-path("variant/<int:pk>/edit/", views.variant_form, name="variant_edit"),
-path("variant/<int:pk>/delete/", views.variant_delete, name="variant_delete"),
+   path("variant/add/", views.variant_form, name="variant_add"),
+   path("variant/<int:pk>/edit/", views.variant_form, name="variant_edit"),
+    path("variant/<int:pk>/delete/", views.variant_delete, name="variant_delete"),
 
     path("orders/", views.order_list, name="order_list"),
     path("orders/<int:order_id>/", views.order_detail, name="order_detail"),

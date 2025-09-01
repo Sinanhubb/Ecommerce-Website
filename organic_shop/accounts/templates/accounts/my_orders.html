@@ -24,6 +24,9 @@
             <div>
               <a href="{% url 'accounts:order_detail' order.id %}" class="btn btn-outline-primary btn-sm">View Details</a>
               <a href="{% url 'accounts:order_tracking' order.id %}" class="btn btn-outline-info btn-sm">Track Order</a>
+              <a href="{% url 'accounts:download_invoice' order.id %}" class="btn btn-primary">
+    Download Invoice (PDF)
+</a>
             </div>
           </div>
         </div>

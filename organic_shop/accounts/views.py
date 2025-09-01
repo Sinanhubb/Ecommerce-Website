@@ -554,3 +554,13 @@ def order_summary(request, order_id):
         'discount': discount,
         'total': total
     })
+
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
+from .models import Order
+from .utils import generate_invoice
+
+@login_required
+def download_invoice(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    return generate_invoice(order)
