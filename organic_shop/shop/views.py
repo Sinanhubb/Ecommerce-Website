@@ -14,14 +14,14 @@ import json
 def index(request):
     categories = Category.objects.filter(is_active=True)
 
-    # 2. Define a reusable Prefetch object to get the highest-stocked variant
+    
     default_variant_prefetch = Prefetch(
         'variants',
         queryset=ProductVariant.objects.order_by('-stock'),
-        to_attr='default_variant_list' # This creates a temporary attribute
+        to_attr='default_variant_list' 
     )
 
-    # 3. Apply this Prefetch to all your product queries
+    
     featured_products = Product.objects.filter(
         available=True, is_featured=True, category__is_active=True
     ).prefetch_related(default_variant_prefetch)[:8]
@@ -38,11 +38,10 @@ def index(request):
         available=True, category__is_active=True
     ).order_by('-views').prefetch_related(default_variant_prefetch)[:8]
 
-    # 4. Attach the default variant from the prefetched data (NO database queries here)
+   
     product_lists = [featured_products, best_selling, just_arrived, most_popular]
     for product_list in product_lists:
         for product in product_list:
-            # Get the first variant from the list we fetched, or None if the list is empty
             product.default_variant = product.default_variant_list[0] if product.default_variant_list else None
 
     wishlist_items = []
@@ -61,19 +60,17 @@ def index(request):
 
 
 def product_detail(request, slug):
-    # This single, efficient query fetches the product AND all related data we need.
     product = get_object_or_404(
         Product.objects.annotate(
-            # Calculate average rating directly in the database
+            
             average_rating=Avg('reviews__rating')
         ).prefetch_related(
-            # Prefetch all variants AND their nested values/options in one go
+           
             Prefetch(
                 'variants',
                 queryset=ProductVariant.objects.order_by('-stock').prefetch_related('values__option')
             ),
-            'images', # Prefetch all additional product images
-            # Prefetch and pre-sort reviews in the database
+            'images', 
             Prefetch(
                 'reviews',
                 queryset=Review.objects.order_by('-created_at').select_related('user')
@@ -82,8 +79,6 @@ def product_detail(request, slug):
         slug=slug,
         available=True
     )
-
-    # --- REVIEW FORM HANDLING ---
     if request.method == 'POST' and request.user.is_authenticated:
         review_form = ReviewForm(request.POST)
         if review_form.is_valid():
@@ -96,18 +91,17 @@ def product_detail(request, slug):
     else:
         review_form = ReviewForm()
 
-    # Get data from our efficient query
     all_product_variants = list(product.variants.all())
     default_variant = all_product_variants[0] if all_product_variants else None
-    reviews = product.reviews.all()
+    reviews = list(product.reviews.all())
     average_rating = product.average_rating or 0
 
-    # Safely update view count
+   
     product.views = F('views') + 1
     product.save(update_fields=['views'])
     product.refresh_from_db(fields=['views'])
 
-    # --- The rest of your view logic ---
+    
     cart_product_form = CartAddProductForm()
 
     # SIMILAR PRODUCTS
@@ -181,26 +175,26 @@ def category_detail(request, slug):
     products = Product.objects.filter(category=category, available=True)
 
     
-    # It finds the 'effective_price' which is the discount_price or the regular price.
+   
     effective_price_subquery = ProductVariant.objects.filter(
         product=OuterRef('pk')
     ).annotate(
         effective_price=Coalesce('discount_price', 'price')
     ).order_by('-stock').values('effective_price')[:1]
 
-    # 3. Annotate the main queryset with this new 'sorting_price'
+   
     products = products.annotate(
         sorting_price=Subquery(effective_price_subquery),
         avg_rating=Avg('reviews__rating')
     ).prefetch_related('variants')
 
     sort = request.GET.get('sort')
-    # 4. Use the new 'sorting_price' field for ordering
+   
     if sort == 'price_asc':
         products = products.order_by('sorting_price')
     elif sort == 'price_desc':
         products = products.order_by('-sorting_price')
-    # ... rest of the function is the same ...
+   
     elif sort == 'newest':
         products = products.order_by('-created_at')
     elif sort == 'rating':
@@ -272,11 +266,10 @@ def cart_detail(request):
 
 def get_or_create_cart(request):
     if request.user.is_authenticated:
-        # For logged-in users, the logic is now simple.
-        # The merge already happened at login via the signal.
+        
         cart, _ = Cart.objects.get_or_create(user=request.user)
     else:
-        # The logic for anonymous users remains the same.
+       
         if not request.session.session_key:
             request.session.create()
         session_key = request.session.session_key
@@ -370,12 +363,12 @@ def buy_now(request, product_id):
             stock_to_check = variant.stock
             variant_sku_for_session = variant.sku
 
-        # Check if the requested quantity is available
+       
         if quantity > stock_to_check:
             messages.error(request, f"Sorry, only {stock_to_check} are available in stock.")
             return redirect('shop:product_detail', slug=product.slug)
 
-        # Set the session data for the checkout view. This completely bypasses the cart.
+        
         request.session['direct_checkout'] = {
             'product_id': product.id,
             'variant_id': variant_sku_for_session, 
@@ -403,32 +396,30 @@ def get_matching_variant(request):
         selected_values = data.get("selected_values", [])
         product = get_object_or_404(Product, id=product_id)
 
-        # ✅ FIX: First, check if the product has any variants at all.
+       
         if not product.variants.exists():
-            # This is a simple product with no variants. Return its own data.
+            
             base_price = float(product.price)
             discount_price = float(product.discount_price) if product.discount_price else None
 
             return JsonResponse({
                 "success": True,
-                "sku": None, # Simple products might not have a SKU
+                "sku": None, 
                 "price": f"{base_price:.2f}",
                 "discount_price": f"{discount_price:.2f}" if discount_price else None,
                 "stock": product.stock,
                 "image": product.image.url if product.image else "",
-                "variant_id": None, # No variant ID for simple products
+                "variant_id": None, 
                 "is_variant_product": False,
             })
 
-        # If we are here, it means the product DOES have variants.
-        # Now we proceed with the logic for finding the correct variant.
         
         variant = None
         if not selected_values:
-            # If no options are selected, return the default (highest stock) variant
+            
             variant = product.variants.order_by('-stock').first()
         else:
-            # If options ARE selected, use the efficient query to find the exact match
+        
             num_selected = len(selected_values)
             variant = ProductVariant.objects.filter(
                 product_id=product_id,
@@ -442,7 +433,7 @@ def get_matching_variant(request):
         if not variant:
             return JsonResponse({"success": False, "message": "This combination is not available."})
 
-        # A matching variant was found, so we package its data
+       
         base_price = float(variant.price)
         discount_price = float(variant.discount_price) if variant.discount_price else None
         

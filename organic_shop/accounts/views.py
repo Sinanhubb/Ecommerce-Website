@@ -7,38 +7,26 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.forms import UserCreationForm
 from .forms import AddressForm,UserProfileForm
 from django.contrib import messages
+from django.utils import timezone
+from .utils import generate_invoice
+from django.db import transaction
 from django.http import JsonResponse
 from django.urls import reverse
 from decimal import Decimal
 import json
-from django.utils import timezone
-from .utils import generate_invoice
 
-# accounts/views.py
-from django.db import transaction
-
-# ... (all your other imports) ...
 
 def _create_order_with_items(request, address, payment_method, items_data, subtotal, promo_code_obj):
-    """
-    A robust helper function to create an order from a list of items.
-    Handles stock checking, transactions, and promo code usage.
-    Returns the created Order object on success, or None on failure.
-    """
     user = request.user
     discount = Decimal('0.00')
     total = subtotal
 
-    # Recalculate discount based on the final promo code object
     if promo_code_obj:
         discount = (Decimal(promo_code_obj.discount_percentage) / Decimal('100')) * subtotal
         total = subtotal - discount
 
     try:
-        # Use a transaction to ensure all database operations are atomic.
-        # This prevents creating a partial order if stock runs out mid-process.
         with transaction.atomic():
-            # 1. Create the main Order object
             order = Order.objects.create(
                 user=user,
                 address=address,
@@ -47,27 +35,20 @@ def _create_order_with_items(request, address, payment_method, items_data, subto
                 promo_code=promo_code_obj
             )
 
-            # 2. Loop through the items to create OrderItems and check stock
             for item_info in items_data:
                 variant = item_info.get('variant')
 
-                # Lock the variant/product to prevent race conditions (overselling)
                 if variant:
-                    # Use select_for_update() to lock the database row until the transaction is complete
                     variant_to_check = ProductVariant.objects.select_for_update().get(id=variant.id)
                     stock_available = variant_to_check.stock
                 else:
-                    # Handle non-variant products if necessary (assuming Product has a stock field)
                     product_to_check = Product.objects.select_for_update().get(id=item_info['product'].id)
                     stock_available = product_to_check.stock
 
-                # Check stock right before creating the order item
                 if item_info['quantity'] > stock_available:
                     messages.error(request, f"Sorry, '{item_info['product'].name}' went out of stock while you were checking out.")
-                    # By raising an exception, the transaction.atomic() block will automatically roll back
                     raise ValueError("Insufficient stock")
 
-                # 3. Create the OrderItem
                 OrderItem.objects.create(
                     order=order,
                     product=item_info['product'],
@@ -76,7 +57,6 @@ def _create_order_with_items(request, address, payment_method, items_data, subto
                     quantity=item_info['quantity']
                 )
 
-                # 4. Update the stock
                 if variant:
                     variant_to_check.stock -= item_info['quantity']
                     variant_to_check.sold_count += item_info['quantity']
@@ -86,7 +66,6 @@ def _create_order_with_items(request, address, payment_method, items_data, subto
                     product_to_check.sold_count += item_info['quantity']
                     product_to_check.save()
 
-            # 5. Update promo code usage after the order is successfully created
             if promo_code_obj:
                 promo_code_obj.usage_limit -= 1
                 if promo_code_obj.usage_limit <= 0:
@@ -99,8 +78,6 @@ def _create_order_with_items(request, address, payment_method, items_data, subto
         return None
 
 
-# accounts/views.py
-
 def user_login(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -108,7 +85,7 @@ def user_login(request):
         user = authenticate(request, username=username, password=password)
 
         if user:
-            login(request, user) # The signal will fire automatically here
+            login(request, user) 
             return redirect(request.GET.get('next', 'shop:index'))
         else:
             messages.error(request, 'Invalid username or password.')
@@ -179,25 +156,6 @@ def wishlist_view(request):
         'wishlist_count': wishlist_count
         })
 
-
-from django.http import JsonResponse
-
-# accounts/views.py
-
-# ... (keep all your other imports)
-from django.contrib import messages
-from django.http import JsonResponse
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_POST
-from shop.models import Product, ProductVariant
-from .models import Wishlist
-
-# ... (keep your other views like user_login, profile_view, etc.)
-
-
-# accounts/views.py
-
 @login_required
 def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, id=product_id)
@@ -210,7 +168,6 @@ def add_to_wishlist(request, product_id):
         except (ValueError, TypeError):
             variant = None
 
-    # Use filter().first() which is safer than get()
     wishlist_item = Wishlist.objects.filter(
         user=request.user,
         product=product,
@@ -218,12 +175,10 @@ def add_to_wishlist(request, product_id):
     ).first()
 
     if wishlist_item:
-        # If the item already exists, delete it
         wishlist_item.delete()
         added = False
         message = "Removed from your wishlist."
     else:
-        # If it does not exist, create it
         Wishlist.objects.create(
             user=request.user,
             product=product,
@@ -248,11 +203,6 @@ def add_to_wishlist(request, product_id):
 @login_required
 @require_POST
 def remove_from_wishlist(request, item_id):
-    """
-    BUG FIX: Removes a specific item from the wishlist by its own ID, not the product's ID.
-    This is much safer and more precise.
-    """
-    # Find the specific wishlist item and ensure it belongs to the logged-in user for security
     wishlist_item = get_object_or_404(Wishlist, id=item_id, user=request.user)
     wishlist_item.delete()
     messages.success(request, "Item removed from your wishlist.")
@@ -260,20 +210,12 @@ def remove_from_wishlist(request, item_id):
     redirect_to = request.POST.get('next', 'accounts:wishlist')
     return redirect(redirect_to)
 
-from decimal import Decimal
-from django.utils import timezone
-from django.contrib import messages
-
-# accounts/views.py
-
 @login_required
 def checkout(request):
     user = request.user
     direct_data = request.session.get('direct_checkout')
     applied_promo_code_str = request.session.get('applied_promo_code')
     addresses = Address.objects.filter(user=user)
-
-    # ----- 1. PREPARE ITEMS AND SUBTOTAL (Handles both flows) -----
     items_data = []
     subtotal = Decimal('0.00')
 
@@ -312,33 +254,28 @@ def checkout(request):
             return redirect('shop:index')
 
         for item in cart.items.all():
-            price = item.get_price() # Assumes a get_price() method on CartItem model
+            price = item.get_price() 
             items_data.append({
                 'product': item.product,
                 'variant': item.variant,
                 'quantity': item.quantity,
                 'price': price,
-                'total_price': item.total_price # Assumes a total_price property on CartItem model
+                'total_price': item.total_price 
             })
         subtotal = cart.total_price
 
     # ----- 2. HANDLE PROMO CODES -----
-    # Note: Your `get_promo_discount` function can be simplified or used as is.
-    # For this example, we'll fetch the object and let the helper calculate the final discount.
     promo_code_obj = None
     if applied_promo_code_str:
         try:
             promo_code_obj = PromoCode.objects.get(code=applied_promo_code_str, active=True)
-            # You can add your other validation checks here (dates, usage, etc.)
         except PromoCode.DoesNotExist:
             messages.error(request, "The applied promo code is not valid.")
             request.session.pop('applied_promo_code', None)
 
-    # Let's get the final discount and total for display
     discount_display = (Decimal(promo_code_obj.discount_percentage) / Decimal('100')) * subtotal if promo_code_obj else Decimal('0.00')
     total_display = subtotal - discount_display
 
-    # ----- 3. HANDLE POST REQUESTS (Placing Order / Applying Promo) -----
     if request.method == 'POST':
         if 'apply_promo' in request.POST:
             promo_code_input = request.POST.get('promo_code', '').strip()
@@ -356,32 +293,26 @@ def checkout(request):
 
             address = get_object_or_404(Address, id=selected_address_id, user=user)
 
-            # CALL THE HELPER FUNCTION!
             order = _create_order_with_items(
                 request=request,
                 address=address,
                 payment_method=payment_method,
                 items_data=items_data,
                 subtotal=subtotal,
-                promo_code_obj=promo_code_obj # Pass the validated object
+                promo_code_obj=promo_code_obj
             )
 
             if order:
-                # Success! The helper function did all the work.
-                # Clean up session data.
                 request.session.pop('direct_checkout', None)
                 request.session.pop('applied_promo_code', None)
-                if not direct_data: # If it was a cart checkout, delete the cart
+                if not direct_data: 
                     cart.delete()
                 
                 messages.success(request, "Your order has been placed successfully!")
                 return redirect('accounts:order_summary', order_id=order.id)
             else:
-                # Failure! The helper function already set the error message.
-                # Just redirect back to the checkout page.
                 return redirect('accounts:checkout')
 
-    # ----- 4. RENDER THE TEMPLATE -----
     context = {
         'addresses': addresses,
         'products': items_data,
@@ -393,22 +324,15 @@ def checkout(request):
         'applied_promo_code': applied_promo_code_str if promo_code_obj else None
     }
     return render(request, 'accounts/checkout.html', context)
-
-# accounts/views.py
-
-from django.shortcuts import get_object_or_404, redirect
-from django.contrib import messages
-from shop.models import Product, ProductVariant # Make sure models are imported
+ 
 
 @login_required
 def direct_checkout(request, pk):
     product = get_object_or_404(Product, pk=pk)
     variant_id = request.POST.get('variant_id')
-    variant = None # Initialize variant as None by default
+    variant = None 
 
-    # --- NEW: Conditionally find the variant ---
     if variant_id:
-        # A variant was selected, so we MUST find it.
         try:
             variant = ProductVariant.objects.get(sku=variant_id, product=product)
         except ProductVariant.DoesNotExist:
@@ -420,13 +344,10 @@ def direct_checkout(request, pk):
         if quantity <= 0:
             raise ValueError("Quantity must be at least 1.")
 
-        # --- NEW: Check stock on either the variant or the main product ---
-        # Note: This assumes your Product model has a 'stock' field for non-variant products.
         stock_available = variant.stock if variant else product.stock
         if quantity > stock_available:
             raise ValueError(f"Only {stock_available} item(s) are available in stock.")
 
-        # Set up the session data, storing the SKU if a variant exists, otherwise None
         request.session['direct_checkout'] = {
             'product_id': product.id,
             'variant_id': variant.sku if variant else None,
@@ -437,8 +358,6 @@ def direct_checkout(request, pk):
     except ValueError as e:
         messages.error(request, str(e))
         return redirect('shop:product_detail', slug=product.slug)
-
-
 
 @login_required
 def add_address(request):
@@ -458,8 +377,6 @@ def add_address(request):
 @login_required
 def edit_address(request, address_id):
     address = get_object_or_404(Address, id=address_id, user=request.user)
-    
-    # 1. Get the 'next' URL from the query string, form post, or use a default
     next_url = request.GET.get('next') or request.POST.get('next') or reverse('accounts:profile')
 
     if request.method == 'POST':
@@ -467,19 +384,19 @@ def edit_address(request, address_id):
         if form.is_valid():
             form.save()
             messages.success(request, 'Address updated successfully.')
-            # 2. Redirect to the determined next_url after a successful save
             return redirect(next_url)
     else:
         form = AddressForm(instance=address)
         
-    # 3. Pass all necessary context to the template
+   
     context = {
         'form': form,
-        'address': address, # Pass the address object for display purposes (e.g., in a title)
+        'address': address, 
         'next': next_url
     }
     return render(request, 'accounts/edit_address.html', context)
-
+@login_required
+@require_POST
 def delete_address(request, pk):
     address = get_object_or_404(Address, pk=pk, user=request.user)
     address.delete()
@@ -553,7 +470,6 @@ def order_summary(request, order_id):
         'discount': discount,
         'total': total
     })
-
 
 
 @login_required
