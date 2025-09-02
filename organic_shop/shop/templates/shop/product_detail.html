@@ -11,9 +11,9 @@
         </ol>
     </nav>
     <div class="row">
-        <!-- Product Images Column -->
+       
         <div class="col-md-6">
-            <!-- Main Image with Zoom Effect -->
+           
             <div class="main-image mb-4 border rounded p-2">
                 <img id="main-product-image" src="{{ product.image.url }}" class="img-fluid w-100" alt="{{ product.name }}" 
                      style="cursor: zoom-in; max-height: 500px; object-fit: contain;">
@@ -33,7 +33,7 @@
             </div>
         </div>
 
-        <!-- Product Info Column -->
+        
 <div class="col-md-6">
     <!-- Product Header -->
     <div class="product-header mb-3">
@@ -133,7 +133,6 @@
     <!-- Action Buttons -->
     <div class="action-buttons mb-4">
         <div class="d-flex flex-column flex-md-row gap-3 align-items-start">
-            <!-- Quantity Selector -->
             <div class="input-group mb-2" style="width: 150px;">
                 <button class="btn btn-outline-secondary" type="button" onclick="decrementQuantity()">−</button>
                 {{ cart_product_form.quantity }}
@@ -232,7 +231,7 @@
     <div class="highlights mb-4">
         <h5 class="fw-bold">Highlights</h5>
         <ul class="list-unstyled">
-            <!-- Add product highlights here -->
+            
         </ul>
     </div>
 </div>       
@@ -357,7 +356,6 @@
                     </div>
                 </div>
                 <div class="col-md-8">
-                    <!-- Rating distribution could go here -->
                 </div>
             </div>
 
@@ -430,7 +428,6 @@
 </div>
 
 <script>
-    // These functions are now GLOBAL, so onclick="" can find them.
     function changeMainImage(thumbnail) {
         document.getElementById('main-product-image').src = thumbnail.src;
         document.querySelectorAll('.thumbnail-item').forEach(item => item.classList.remove('active'));
@@ -444,7 +441,6 @@
         let currentValue = parseInt(visibleQuantityInput.value);
         if (currentValue < maxStock) {
             visibleQuantityInput.value = currentValue + 1;
-            // Sync the hidden input
             if (hiddenCartInput) {
                 hiddenCartInput.value = visibleQuantityInput.value;
             }
@@ -457,7 +453,6 @@
         let currentValue = parseInt(visibleQuantityInput.value);
         if (currentValue > 1) {
             visibleQuantityInput.value = currentValue - 1;
-            // Sync the hidden input
             if (hiddenCartInput) {
                 hiddenCartInput.value = visibleQuantityInput.value;
             }
@@ -469,9 +464,7 @@
     }
 
 
-    // This runs after the page is fully loaded
     document.addEventListener("DOMContentLoaded", () => {
-        // All variant-specific logic is safely inside here
         if (!document.getElementById('variant-options')) return; 
 
         const variantOptionGroups = document.querySelectorAll('.btn-group[data-option]');
@@ -605,7 +598,7 @@
             }
         }
 
-        // --- Initial Setup ---
+        
         document.querySelectorAll('.variant-btn').forEach(btn => btn.addEventListener('click', handleVariantClick));
         
         if (buyNowForm) {
@@ -615,7 +608,7 @@
             });
         }
         
-        // ** THIS FIXES THE DEFAULT VARIANT **
+        
         const defaultVariantValues = [{% for value in default_variant.values.all %}"{{ value.value }}",{% endfor %}];
         if (defaultVariantValues.length > 0) {
             defaultVariantValues.forEach(val => {
@@ -632,9 +625,9 @@
 
 
 <style>
-/* --- Improved Action Button Styles --- */
+
 .action-buttons .btn-lg {
-    padding: 0.6rem 1rem; /* Makes buttons slightly less tall */
+    padding: 0.6rem 1rem; 
     border-radius: 8px;
     border: none;
     font-weight: 600;
@@ -643,21 +636,21 @@
 }
 
 .action-buttons .btn-lg:hover:not(:disabled) {
-    transform: translateY(-2px); /* Lifts the button on hover */
+    transform: translateY(-2px); 
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }
 
 .action-buttons .btn-lg:active:not(:disabled) {
-    transform: translateY(0); /* Pushes button back down on click */
+    transform: translateY(0); 
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
-/* --- Thumbnail and Image Styles --- */
+
 .thumbnail-item.active {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
-/* --- Modern Variant Swatch Styles --- */
+
 .variant-btn {
     border-radius: 8px;
     border: 2px solid #e0e0e0;
@@ -708,10 +701,9 @@
     background-color: #f8f9fa;
     border-color: #e0e0e0;
     box-shadow: none;
-    position: relative; /* Needed for the line-through */
+    position: relative; 
 }
 
-/* Adds a line-through effect for disabled buttons */
 .variant-btn.disabled::before {
     content: '';
     position: absolute;
@@ -724,10 +716,9 @@
 }
 
 .color-swatch.disabled::before {
-    transform: rotate(45deg); /* Adjust angle for circles */
-}
+    transform: rotate(45deg); 
 
-/* --- Other Styles --- */
+}
 .rating-input { display: flex; direction: rtl; unicode-bidi: bidi-override; }
 .rating-input input { display: none; }
 .rating-input label { font-size: 2rem; color: #ddd; cursor: pointer; }

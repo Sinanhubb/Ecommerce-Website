@@ -12,6 +12,7 @@ from django.urls import reverse
 from decimal import Decimal
 import json
 from django.utils import timezone
+from .utils import generate_invoice
 
 # accounts/views.py
 from django.db import transaction
@@ -92,11 +93,9 @@ def _create_order_with_items(request, address, payment_method, items_data, subto
                     promo_code_obj.active = False
                 promo_code_obj.save()
 
-        # If the transaction completes without errors, return the order
         return order
 
     except ValueError as e:
-        # This will catch our "Insufficient stock" error and stop the process
         return None
 
 
@@ -555,10 +554,7 @@ def order_summary(request, order_id):
         'total': total
     })
 
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.decorators import login_required
-from .models import Order
-from .utils import generate_invoice
+
 
 @login_required
 def download_invoice(request, order_id):
