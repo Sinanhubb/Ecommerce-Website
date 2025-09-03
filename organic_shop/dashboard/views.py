@@ -3,18 +3,21 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.contrib.admin.views.decorators import staff_member_required
-from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm,ReviewForm
+from .forms import ProductForm, ProductVariantForm, OrderForm, PromoCodeForm,ReviewForm,CategoryForm,ProductVariantFormSet, OrderItemForm
 from shop.models import Product, ProductVariant, Category,Review
 from accounts.models import Order, OrderItem, PromoCode, Address
 from django.contrib.auth.models import User
 from django.db.models.functions import Coalesce
 from django.db.models import Count, Sum, Value
 from django.db.models.fields import DecimalField
+from django.contrib.auth.decorators import login_required 
 
 
-# -------------------------
-# Dashboard Home
-# -------------------------
+@login_required
+def profile_view(request):
+    return render(request, "dashboard/profile.html", {"user": request.user})
+
+@staff_member_required
 def dashboard_home(request):
     query = request.GET.get("q")
     product_list = Product.objects.all().order_by("-id")
@@ -45,9 +48,7 @@ def dashboard_home(request):
         "latest_review": latest_review, 
     })
 
-# -------------------------
-# Product CRUD
-# -------------------------
+
 def product_list(request):
     products = Product.objects.all().order_by('-id')
     return render(request, 'dashboard/product_list.html', {'products': products})
@@ -74,11 +75,6 @@ def product_delete(request, pk):
     product.delete()
     messages.success(request, "Product deleted successfully 🗑️")
     return redirect("dashboard:dashboard_home")
-
-# -------------------------
-# Variant CRUD
-# -------------------------
-
 
 
 def variant_list(request):
@@ -120,9 +116,7 @@ def variant_delete(request, pk):
     messages.success(request, "Variant deleted successfully 🗑️")
     return redirect("dashboard:dashboard_home")
 
-# -------------------------
-# Orders
-# -------------------------
+
 def order_list(request):
     orders = Order.objects.all().order_by('-created_at')
     return render(request, 'dashboard/orders/order_list.html', {'orders': orders})
@@ -154,9 +148,7 @@ def order_delete(request, order_id):
         return redirect("dashboard:order_list")
     return render(request, "dashboard/orders/order_confirm_delete.html", {"order": order})
 
-# -------------------------
-# PromoCode (Admin Only)
-# -------------------------
+
 @staff_member_required
 def promocode_list(request):
     promocodes = PromoCode.objects.all().order_by("-id")
@@ -190,13 +182,13 @@ def promocode_delete(request, pk):
     return render(request, "dashboard/promocode_confirm_delete.html", {"promocode": promocode})
 
 
-# List all reviews
+
 @staff_member_required
 def review_list(request):
     reviews = Review.objects.all().order_by('-created_at')
     return render(request, 'dashboard/review_list.html', {'reviews': reviews})
 
-# Add/Edit review
+
 @staff_member_required
 def review_form(request, pk=None):
     review = get_object_or_404(Review, pk=pk) if pk else None
@@ -212,7 +204,7 @@ def review_form(request, pk=None):
         form = ReviewForm(instance=review)
     return render(request, 'dashboard/review_form.html', {'form': form, 'title': 'Edit Review' if pk else 'Add Review'})
 
-# Delete review
+
 @staff_member_required
 def review_delete(request, pk):
     review = get_object_or_404(Review, pk=pk)
@@ -223,10 +215,8 @@ def review_delete(request, pk):
     return render(request, 'dashboard/review_confirm_delete.html', {'review': review})
 
 
-# dashboard/views.py
-from django.shortcuts import render, get_object_or_404, redirect
-from .forms import ProductForm, ProductVariantForm, CategoryForm
-from shop.models import Product, ProductVariant, Category
+
+
 
 
 def category_list(request):
@@ -262,7 +252,7 @@ def category_delete(request, pk):
 
 def customer_list(request):
     
-    # This single, powerful query annotates each user with the required data
+    
     customers_list = User.objects.annotate(
         orders_count=Count('order'),
         total_spent=Coalesce(Sum('order__total_price'), Value(0, output_field=DecimalField()))
@@ -273,19 +263,11 @@ def customer_list(request):
     })
 
 
-# dashboard/views.py
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
 
-from .forms import (
-    ProductForm, ProductVariantFormSet, ProductVariantForm,
-    OrderForm, OrderItemForm, PromoCodeForm, ReviewForm, CategoryForm
-)
-from shop.models import Product
 
 
 def product_form(request, pk=None):
-    """Add/Edit a Product with its Variants"""
+    
     product = get_object_or_404(Product, pk=pk) if pk else None
 
     if request.method == "POST":

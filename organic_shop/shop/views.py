@@ -13,8 +13,6 @@ import json
 
 def index(request):
     categories = Category.objects.filter(is_active=True)
-
-    
     default_variant_prefetch = Prefetch(
         'variants',
         queryset=ProductVariant.objects.order_by('-stock'),
@@ -62,7 +60,6 @@ def index(request):
 def product_detail(request, slug):
     product = get_object_or_404(
         Product.objects.annotate(
-            
             average_rating=Avg('reviews__rating')
         ).prefetch_related(
            
@@ -95,13 +92,9 @@ def product_detail(request, slug):
     default_variant = all_product_variants[0] if all_product_variants else None
     reviews = list(product.reviews.all())
     average_rating = product.average_rating or 0
-
-   
     product.views = F('views') + 1
     product.save(update_fields=['views'])
     product.refresh_from_db(fields=['views'])
-
-    
     cart_product_form = CartAddProductForm()
 
     # SIMILAR PRODUCTS
@@ -167,9 +160,6 @@ def product_detail(request, slug):
     return render(request, 'shop/product_detail.html', context)
 
 
-
-
-
 def category_detail(request, slug):
     category = get_object_or_404(Category, slug=slug, is_active=True)
     products = Product.objects.filter(category=category, available=True)
@@ -227,27 +217,31 @@ def cart_add(request, product_id):
     if form.is_valid():
         cd = form.cleaned_data
         quantity = cd['quantity']
-        
-       
-        variant_id = request.POST.get('variant_id') 
+
+      
+        variant_id = request.POST.get('variant_id')
         variant = None
-
         if variant_id:
-            
-            variant = get_object_or_404(ProductVariant, id=variant_id)
-        
+            variant = get_object_or_404(ProductVariant, id=variant_id, product=product)
 
+        available_stock = variant.stock if variant else product.stock
+        if quantity > available_stock:
+            messages.error(request, f"Only {available_stock} left in stock.")
+            return redirect('shop:product_detail', slug=product.slug)
+
+   
         item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
             variant=variant,
-            defaults={'quantity': quantity}
+            defaults={'quantity': 0}  
         )
-        if not created:
-            item.quantity += quantity
-            item.save()
 
-        return redirect('shop:cart_detail')   
+
+        item.quantity = min(item.quantity + quantity, available_stock)
+        item.save()
+
+        return redirect('shop:cart_detail')
 
     return redirect('shop:product_detail', slug=product.slug)
 
@@ -325,7 +319,6 @@ def update_cart_item_ajax(request):
         data = json.loads(request.body)
         item_id = data.get("item_id")
         quantity = int(data.get("quantity"))
-
         item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
 
         if quantity > 0:
@@ -341,9 +334,7 @@ def update_cart_item_ajax(request):
 @login_required
 def buy_now(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    
     variant_pk = request.POST.get('variant_id') 
-    
     
     if product.variants.exists() and not variant_pk:
         messages.error(request, "Please select a product option to buy now.")
