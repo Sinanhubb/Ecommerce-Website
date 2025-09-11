@@ -17,9 +17,7 @@ def index(request):
         'variants',
         queryset=ProductVariant.objects.order_by('-stock'),
         to_attr='default_variant_list' 
-    )
-
-    
+    )    
     featured_products = Product.objects.filter(
         available=True, is_featured=True, category__is_active=True
     ).prefetch_related(default_variant_prefetch)[:8]
@@ -309,8 +307,6 @@ def update_cart_item(request, item_id):
     except (ValueError, TypeError):
         pass
     return redirect('shop:cart_detail')
-
-
 
 @require_POST
 @login_required

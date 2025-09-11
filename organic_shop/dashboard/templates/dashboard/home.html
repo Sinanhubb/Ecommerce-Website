@@ -6,7 +6,6 @@
 {% block content %}
 
 
-<!-- Sidebar + Main Content Layout -->
 
 
     <!-- Main Content -->
@@ -30,7 +29,6 @@
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="dashboardActions">
                         <li><a class="dropdown-item" href="{% url 'dashboard:product_add' %}">Add Product</a></li>
-                        <li><a class="dropdown-item" href="{% url 'dashboard:variant_add' %}">Add Variant</a></li>
                         <li><a class="dropdown-item" href="{% url 'dashboard:promocode_add' %}">Add Promo Code</a></li>
                     </ul>
                 </div>
@@ -157,9 +155,6 @@
                     <a href="{% url 'dashboard:product_add' %}" class="btn btn-sm btn-success">
                         <i class="bi bi-plus-lg"></i> Add Product
                     </a>
-                    <a href="{% url 'dashboard:variant_add' %}" class="btn btn-sm btn-success">
-                        <i class="bi bi-plus-lg"></i> Add Variant
-                    </a>
                 </div>
             </div>
 
@@ -198,7 +193,7 @@
                                     </div>
                                 </td>
                                 <td>{{ product.category.name }}</td>
-                                <td>
+                                <td>  
                                     {% if product.variants.all %}
                                         <span class="text-muted">From</span> ₹{{ product.get_min_price }}
                                     {% else %}
@@ -345,7 +340,6 @@
 
         <!-- Quick Stats Row -->
         <div class="row g-4">
-            <!-- Latest Product -->
             <div class="col-md-6">
                 <div class="card border-0 shadow-sm h-100">
                     <div class="card-header bg-white">

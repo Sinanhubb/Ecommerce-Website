@@ -82,7 +82,6 @@
       {% endif %}
     </div>
 
-    {# 🔴 per-row non-field errors (e.g., duplicates) #}
     {% if vform.non_field_errors %}
       <div class="alert alert-danger py-2 px-3 mb-3">
         {% for err in vform.non_field_errors %}
@@ -136,11 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const totalInput = document.getElementById('id_variants-TOTAL_FORMS');
     const tpl = document.getElementById('variant-empty-form').innerHTML.trim();
 
-    // Helpers to toggle Bootstrap "d-none"
     const showEl = (el) => el && el.classList.remove('d-none');
     const hideEl = (el) => el && el.classList.add('d-none');
 
-    // ---- Product Image Preview (bind to the first non-formset file input) ----
     const productImageInput = document.querySelector('input[type="file"]:not([name^="variants-"])');
     const productPreview = document.getElementById('product-image-preview');
     if (productImageInput && productPreview) {
@@ -163,7 +160,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // ---- Variant Image Preview (per block) ----
     function attachVariantPreview(block) {
         const preview = block.querySelector('.variant-image-preview');
-        // Prefer an input whose name ends with "-image"; otherwise fallback to any file input in this block
         let fileInput = block.querySelector('input[type="file"][name$="-image"]');
         if (!fileInput) fileInput = block.querySelector('input[type="file"]');
 
@@ -185,12 +181,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // ---- Renumber visible variants 1..N (skip hidden/deleted) ----
     function renumberVisibleVariants() {
         const items = Array.from(container.querySelectorAll('.variant-item'));
         let n = 1;
         items.forEach(item => {
-            // Hidden if deleted existing (we set style/display none) or has d-none
             const hidden = item.style.display === 'none' || item.classList.contains('d-none');
             if (!hidden) {
                 const title = item.querySelector('.variant-title');
@@ -202,11 +196,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ---- Attach previews to existing forms and renumber on load ----
     container.querySelectorAll('.variant-item').forEach(attachVariantPreview);
     renumberVisibleVariants();
 
-    // ---- Add variant dynamically ----
     addBtn.addEventListener('click', () => {
         const idx = parseInt(totalInput.value, 10);
         const html = tpl.replace(/__prefix__/g, idx);
@@ -215,9 +207,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const block = wrapper.firstElementChild;
 
         container.appendChild(block);
-        totalInput.value = idx + 1; // TOTAL_FORMS must include the new form
+        totalInput.value = idx + 1; 
         attachVariantPreview(block);
-        renumberVisibleVariants();   // keep labels sequential
+        renumberVisibleVariants();  
     });
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -235,7 +227,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-    // ---- Remove variant safely (delegated) ----
     container.addEventListener('click', (e) => {
         const btn = e.target.closest('.remove-variant');
         if (!btn) return;
@@ -244,22 +235,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const deleteCheckbox = variantItem.querySelector('input[type="checkbox"][name$="-DELETE"]');
 
         if (deleteCheckbox) {
-            // Existing variant → mark for deletion, keep TOTAL_FORMS as-is
             deleteCheckbox.checked = true;
             variantItem.style.display = 'none';
         } else {
-            // Newly added unsaved variant → remove node and decrement TOTAL_FORMS
             variantItem.remove();
-            const forms = container.querySelectorAll('.variant-item'); // only live nodes remain
+            const forms = container.querySelectorAll('.variant-item'); 
             totalInput.value = forms.length;
         }
 
-        renumberVisibleVariants(); // always fix labels after any removal
+        renumberVisibleVariants(); 
     });
 });
 </script>
 
-<!-- Empty form template -->
 <template id="variant-empty-form">
   <div class="variant-item border rounded p-3 mb-3 bg-light">
     {% for hidden in formset.empty_form.hidden_fields %}

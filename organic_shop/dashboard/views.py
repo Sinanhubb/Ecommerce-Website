@@ -17,7 +17,7 @@ from django.contrib.auth.decorators import login_required
 def profile_view(request):
     return render(request, "dashboard/profile.html", {"user": request.user})
 
-@staff_member_required
+@login_required
 def dashboard_home(request):
     query = request.GET.get("q")
     product_list = Product.objects.all().order_by("-id")
